@@ -79,6 +79,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
 
 
     Sigma_float = [float(value) for value in Sigma]
+    Size = [value**1.7 for value in Sigma_float]
     Downfact_float = [float(value) for value in Downfact]
 
     fig = plt.figure()
@@ -95,7 +96,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
         ax1.set_ylabel('Number of Pulses')
 
         ax2 = fig.add_subplot(233)
-        plt.scatter(DM, Sigma)
+        plt.scatter(DM, Sigma, c=Downfact_float, alpha=0.9)
         ax2.set_ylabel('Signal-to-Noise')
         ax2.set_xlabel('DM (pc cm^-3)')
         ax2.set_xlim([min(DM), max(DM)])
@@ -111,9 +112,10 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
     ax3.set_ylim([min(DM), max(DM)])
     ax3.set_xlim([min(Time), max(Time)])
     cm = plt.cm.get_cmap('gist_rainbow')
-    sc=ax3.scatter(Time,DM, c=Sigma_float, vmin=min(Sigma_float), vmax=max(Sigma_float), cmap=cm, picker=1)
+#    sc=ax3.scatter(Time,DM, c=Sigma_float, vmin=min(Sigma_float), vmax=max(Sigma_float), cmap=cm, picker=1)
+    sc=ax3.scatter(Time,DM, s=Size, alpha=0.33, c=Downfact_float, cmap=cm, vmin=min(Size), vmax=max(Size), picker=1)
 #	leg = ax1.legend()
-    plt.colorbar(sc, label="Signal-to-Noise")
+    plt.colorbar(sc, label="Downfact")
     if not raw:
         for flag in flags:
             flag_area = matplotlib.patches.Rectangle((float(flag.split()[0]), min(DM)), float(flag.split()[1])-float(flag.split()[0]), max(DM)-min(DM),  edgecolor='0', facecolor='0.66')
