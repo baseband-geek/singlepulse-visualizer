@@ -97,7 +97,7 @@ def load_file(filename):
         return flags
 
     else:
-        print "File name suuplied is not recognised. Must be either .singlepulse, .bad or .flag"
+        print "File name suplied is not recognised. Must be either .singlepulse, .bad or .flag"
 
 
 #def load_flags(filename):
@@ -174,7 +174,7 @@ def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=
             flags.append([start, stop])
 
     np.savetxt(basename+'.flag', flags, fmt='%d')
-    check_call(['./flag.sh', basename])
+    check_call(['flag.sh', basename])
     #Popen(['flag.sh', basename]).communicate()[0]
 
 
