@@ -3,52 +3,168 @@
 
 
 import numpy as np
-import matplotlib
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+#from matplotlib.widgets import Slider, Button, RadioButtons
 from pulsar_tools import disp_delay
 import math
 
 
 
 
-def loadfile(filename):
+class SinglePulse:
+    """
+    A class to contain all the relevant information for each single pulse detection 
+    (i.e. S/N, box-car window size, DM, etc.). This is for ease of access during 
+    plotting/other interactive stuff.
+    """
+    def __init__(self, DM, sig, t, samp, dfact):
+        self.dm = DM          # float
+        self.sigma = sig      # float
+        self.time = t         # float
+        self.sample = samp    # integer
+        self.downfact = dfact # integer
+
+    def print_params(self):
+        print "DM:",self.dm
+        print "Sigma:",self.sigma
+        print "Time:",self.time
+        print "Sample:",self.sample
+        print "Downfactor:",self.downfact
+
+
+class SPList:
+    """
+    A class to contain a number of SinglePulse objectsin a numpy.array and grant easy acces to paramter 
+    lists of those objects. Contains the original list of SinglePulse objects, and a list 
+    of each object's: 
+         DM, sigma, time, sample and downfactor.
+    """
+    def __init__(self, sp_list):
+        self.list = np.array(sp_list)
+        self.dm_list = np.array([sp.dm for sp in sp_list])
+        self.sigma_list = np.array([sp.sigma for sp in sp_list])
+        self.time_list = np.array([sp.time for sp in sp_list])
+        self.sample_list = np.array([sp.sample for sp in sp_list])
+        self.downfact_list = np.array([sp.downfact for sp in sp_list])
+        
+
+
+
+#def make_data_points(data):
+#    """
+#    Function to create all the SinglePulse objects for each single pulse in the data file.
+#    Also creates an SPList object to containall the SinglePulse events.
+#    Returns an SPList object.
+#    """
+#    # TODO: Need to re-work and see if there's a smarter way to populate all of the SinglePulse objects
+#    DM = [float(row.split()[0]) for row in data]
+#    Sigma = [float(row.split()[1]) for row in data]
+#    Time = [float(row.split()[2]) for row in data]
+#    Sample = [int(row.split()[3]) for row in data]
+#    Downfact = [int(row.split()[4]) for row in data]
+#
+#    sp = [SinglePulse(dm, sig, time, samp, dfact) for dm, sig, time, samp, dfact \
+#                       in zip(DM, Sigma, Time, Sample, Downfact)]
+#    sp_list = SPList(sp)
+#
+#    return sp_list
+
+
+
+def load_file(filename):
     if filename==None:
         print "No filename supplied to read..."
 
-    with open(filename) as f:
-        data = f.read()
+    elif filename.endswith('.singlepulse'):
+        DM = np.genfromtxt(filename, comments="#", autostrip=True, usecols=0)
+        Sigma = np.genfromtxt(filename, comments="#", autostrip=True, usecols=1)
+        Time = np.genfromtxt(filename, comments="#", autostrip=True, usecols=2)
+        Sample = np.genfromtxt(filename, comments="#", autostrip=True, usecols=3)
+        Downfact = np.genfromtxt(filename, comments="#", autostrip=True, usecols=4)
+    
+        sp = [SinglePulse(dm, sig, time, samp, dfact) for dm, sig, time, samp, dfact \
+                  in zip(DM, Sigma, Time, Sample, Downfact)]
 
-    data = data.split('\n')
+        return SPList(sp)
 
-    while not data[-1]:
-        data = data[:-1]
-    return data
+    elif filename.endswith('.flag'):
+        flags = np.genfromtxt(filename ,comments="#", autostrip=True)
+
+        if len(flags)==0:
+            print "No flags/bad times provided. Not times in final output will be masked."
+
+        return flags
+
+    else:
+        print "File name suuplied is not recognised. Must be either .singlepulse, .bad or .flag"
+
+
+#def load_flags(filename):
+#    if filename==None:
+#        print "No filename supplied to read into flags..."
+#
+#    flags = np.genfromtxt(filename ,comments="#", autostrip=True)
+#    if len(flags)==0:
+#        print "No flags provided. Not times in final output will be hidden."
+#
+#    return flags
+
 
 def obs_stats(time, flags):
     # Not doing total time correctly, depends on last single pulse detection instead of observation time
     flag_time = 0
 
-    for flag in flags:
-        flag_time+=(float(flag.split()[1])-float(flag.split()[0]))
+    # BWM: if there is only 1 masked region, flags is a list, 
+    # if there are 2+ masked regions, flags is a list of lists.
+    if any(isinstance(l, np.ndarray) for l in flags):
+        for flag in flags:
+            flag_time += (float(flag[1]) - float(flag[0]))
+    else:
+        flag_time = float(flags[1]) - float(flags[0])
     print "%.2f seconds flagged from %.2f seconds of data (%.2f percent)" % ( flag_time, time[-1], flag_time/time[-1]*100)
 
 
 def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=3):
-    """This function takes in a text file of bad 0 DM times and
+    """
+    This function takes in a text file of bad 0 DM times and
     writes out one flagged over the correct de-dispersive smearing
     times, looking for overlaps along the way. There must be a text file named
-    basename.bad with rows indicating bad times for this to work. """
-    from subprocess import Popen
+    basename.bad with rows indicating bad times for this to work. 
+    """
+    from subprocess import check_call
 
+    # BWM: originally planned to move this to the load_file function, 
+    #  but left it incase we JUST want to call flagfile
+    bads = np.genfromtxt(basename+'.bad', comments='#', autostrip=True)
 
-    bads = np.genfromtxt(basename+'.bad')
+    # BWM: again because how np.genfromtxt works, if there is only 1 bad line, we get a list, 
+    # if there are 2+ bad lines we get a list of lists. So have to check for np.ndarray 
+    # instances and change method accordingly.
+ 
     i = 0 # initialize counter for new list
     flags = []
-    for bad in bads:
-        start = bad[0] - (padding + disp_delay(freq1=freq_l, freq2=freq_h, DM=max_DM)/1000)
+    print bads
+
+    if any(isinstance(b, np.ndarray) for b in bads):
+        for bad in bads:
+            start = bad[0] - (padding + disp_delay(freq1=freq_l, freq2=freq_h, DM=max_DM)/1000)
+            if start < 0:
+                start = 0
+            stop = bad[1] + padding
+            if len(flags) > 0:
+                if start <= flags[-1][1]:
+                    flags[-1][1] = stop
+                else:
+                    flags.append([start, stop])
+            else:
+                flags.append([start, stop])
+    
+    else:
+        start = bads[0] - (padding + disp_delay(freq1=freq_l, freq2=freq_h, DM=max_DM)/1000)
         if start < 0:
             start = 0
-        stop = bad[1] + padding
+        stop = bads[1] + padding
         if len(flags) > 0:
             if start <= flags[-1][1]:
                 flags[-1][1] = stop
@@ -56,70 +172,114 @@ def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=
                 flags.append([start, stop])
         else:
             flags.append([start, stop])
+
     np.savetxt(basename+'.flag', flags, fmt='%d')
-    Popen(['flag.sh', basename]).communicate()[0]
+    check_call(['./flag.sh', basename])
+    #Popen(['flag.sh', basename]).communicate()[0]
 
 
-
-def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, threshold=5.0	):
-    """Plots up the flagged data, should switch to using genfromtxt when I have the time"""
+def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, threshold=5.0):
+    """
+    Plots up the flagged data, should switch to using genfromtxt when I have the time.
+       BWM: switched to using load_file to load singlepulse and flags. Uses genfromtext.
+    """
     if raw:
-        data=loadfile(basename+'.singlepulse')[1:]
-        flags = False
+        data = load_file(basename+'.singlepulse')
+        flag_times = False
     else:
-        data = loadfile(basename+'_flagged.singlepulse')[1:]
-        flags = loadfile(basename+'.flag')
+        #flag_times = load_file(basename+'.bad')
+        flagfile(basename)
+        data = load_file(basename+'_flagged.singlepulse')
+        flags = load_file(basename+'.flag')
 
 
-    DM = [float(row.split()[0]) for row in data if float(row.split()[1]) >= threshold]
-    Sigma = [float(row.split()[1]) for row in data if float(row.split()[1]) >= threshold]
-    Time = [float(row.split()[2]) for row in data if float(row.split()[1]) >= threshold]
-    Sample = [int(row.split()[3]) for row in data if float(row.split()[1]) >= threshold]
-    Downfact = [int(row.split()[4]) for row in data if float(row.split()[1]) >= threshold]
+    data = SPList(data.list[np.where(data.sigma_list >= threshold)])
 
+    #DM = [float(row.split()[0]) for row in data if float(row.split()[1]) >= threshold]
+    #Sigma = [float(row.split()[1]) for row in data if float(row.split()[1]) >= threshold]
+    #Time = [float(row.split()[2]) for row in data if float(row.split()[1]) >= threshold]
+    #Sample = [int(row.split()[3]) for row in data if float(row.split()[1]) >= threshold]
+    #Downfact = [int(row.split()[4]) for row in data if float(row.split()[1]) >= threshold]
+    
+    DM = data.dm_list
+    Sigma = data.sigma_list
+    Time = data.time_list
+    Downfact = data.downfact_list
 
-    Sigma_float = [float(value) for value in Sigma]
-    Size = [value**1.7 for value in Sigma_float]
-    Downfact_float = [float(value) for value in Downfact]
+    Downfact_float = Downfact.astype(float)
 
     fig = plt.figure()
+    cm = plt.cm.get_cmap('gist_rainbow')
 
     if StatPlots:
         ax0 = fig.add_subplot(231)
         plt.hist(Sigma, histtype='step', bins=60)
-        ax0.set_xlabel('Signal-to-Noise')
-        ax0.set_ylabel('Number of Pulses')
+        ax0.set_xlabel('Signal-to-Noise',fontsize=18)
+        ax0.set_ylabel('Number of Pulses',fontsize=18)
 
         ax1 = fig.add_subplot(232)
         plt.hist(DM, histtype='step', bins=int(0.5*len(set(DM))))
-        ax1.set_xlabel('DM (pc cm^-3)')
-        ax1.set_ylabel('Number of Pulses')
+        ax1.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)',fontsize=18)
+        ax1.set_ylabel('Number of Pulses',fontsize=18)
 
-        ax2 = fig.add_subplot(233)
-        plt.scatter(DM, Sigma, c=Downfact_float, alpha=0.9)
-        ax2.set_ylabel('Signal-to-Noise')
-        ax2.set_xlabel('DM (pc cm^-3)')
+        ax2 = fig.add_subplot(233, sharex=ax1) 
+        # BWM: now shares x-axis with ax1, so changing DM on one will change range on the other
+        plt.scatter(DM, Sigma, c=Downfact_float, cmap=cm, alpha=0.9)
+        ax2.set_ylabel('Signal-to-Noise',fontsize=18)
+        ax2.set_xlabel('DM ($\mathrm{p\, cm^{-3}}$)',fontsize=18)
         ax2.set_xlim([min(DM), max(DM)])
-        ax2.set_ylim([min(Sigma), max(Sigma)])
+        ax2.set_ylim([min(Sigma), 1.1*max(Sigma)])
 
         ax3 = fig.add_subplot(212)
+
     else:
         ax3 = fig.add_subplot(111)
 
+    # TODO: need to figure out how (if at all) we can make the axis sharing work 
+    #       for x-axis to y-axis share
+
 #	ax3.set_title("Single Pulse Sigma")    
-    ax3.set_xlabel('Time (s)')
-    ax3.set_ylabel('DM (pc cm^-3)')
+    ax3.set_xlabel('Time (s)',fontsize=18)
+    ax3.set_ylabel('DM ($\mathrm{pc\, cm^{-3}}$)',fontsize=18)
     ax3.set_ylim([min(DM), max(DM)])
     ax3.set_xlim([min(Time), max(Time)])
-    cm = plt.cm.get_cmap('gist_rainbow')
+    #cm = plt.cm.get_cmap('gist_rainbow')
+
+    # BWM: grab axis3 size to allocate marker sizes
+    # TODO: is this really the best way to contrain the sizes?
+    bbox_pix = ax3.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    width, height = bbox_pix.width, bbox_pix.height
+    area = width * height # axes area in inches^2 (apparently)
+
+    Size = (Sigma/max(Sigma))**2
+    Size = area*fig.dpi*(Size/max(Size))
+    
+    obs_stats(Time, flags)
 #    sc=ax3.scatter(Time,DM, c=Sigma_float, vmin=min(Sigma_float), vmax=max(Sigma_float), cmap=cm, picker=1)
-    sc=ax3.scatter(Time,DM, s=Size, alpha=0.33, c=Downfact_float, cmap=cm, vmin=min(Size), vmax=max(Size), picker=1)
+    sc = ax3.scatter(Time, DM, s=Size, c=Downfact_float, cmap=cm, vmin=min(Downfact_float),\
+                       vmax=max(Downfact_float), picker=1, facecolor='none')
 #	leg = ax1.legend()
-    plt.colorbar(sc, label="Downfact")
+         
+    plt.colorbar(sc, label="Downfact", pad=0.01)
+    # BWM: can't seem to get the bottom plot to extend the entire width when the color bar is active.
+    fig.subplots_adjust(hspace=0.2, wspace=0.5)
+
     if not raw:
-        for flag in flags:
-            flag_area = matplotlib.patches.Rectangle((float(flag.split()[0]), min(DM)), float(flag.split()[1])-float(flag.split()[0]), max(DM)-min(DM),  edgecolor='0', facecolor='0.66')
+        if any(isinstance(l, np.ndarray) for l in flags):
+            for flag in flags:
+                flag_area = patches.Rectangle((float(flag[0]), min(DM)), \
+                                                         float(flag[1])-float(flag[0]), \
+                                                         max(DM)-min(DM), edgecolor='0', facecolor='0.66')
+                ax3.add_patch(flag_area)
+
+        else:
+            flag_area = patches.Rectangle((float(flags[0]), min(DM)), \
+                                                         float(flags[1])-float(flags[0]), \
+                                                         max(DM)-min(DM), edgecolor='0', facecolor='0.66')
             ax3.add_patch(flag_area)
+
+
+
 
     def onpick(event):
         points = event.artist
@@ -154,10 +314,11 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
             flag_area = matplotlib.patches.Rectangle((float(flag.split()[0]), min(DM)), float(flag.split()[1])-float(flag.split()[0]), max(DM)-min(DM),  edgecolor='0', facecolor='0.66')
             ax2.add_patch(flag_area)
     '''
-    fig.suptitle('Single Pulse Search results for '+basename)
+    fig.suptitle('Single Pulse Search results for '+basename) 
+    #plt.tight_layout(w_pad=0.1, h_pad=0.1)
     plt.show()
 
-    obs_stats(Time, flags)
+    #obs_stats(Time, flags)
 
 
 
