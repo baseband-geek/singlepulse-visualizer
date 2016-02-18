@@ -35,7 +35,7 @@ class SinglePulse:
 
 class SPList:
     """
-    A class to contain a number of SinglePulse objectsin a numpy.array and grant easy acces to paramter 
+    A class to contain a number of SinglePulse objects in a numpy.array and grant easy acces to paramter 
     lists of those objects. Contains the original list of SinglePulse objects, and a list 
     of each object's: 
          DM, sigma, time, sample and downfactor.
@@ -178,7 +178,7 @@ def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=
     #Popen(['flag.sh', basename]).communicate()[0]
 
 
-def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, threshold=5.0):
+def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, threshold=5.0, movie=False):
     """
     Plots up the flagged data, should switch to using genfromtxt when I have the time.
        BWM: switched to using load_file to load singlepulse and flags. Uses genfromtext.
@@ -287,15 +287,15 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
         mouseevent = event.mouseevent
         print '\n'
         print "Information for data points around click event %.4f, %.4f:" % (mouseevent.xdata,  mouseevent.ydata)
-        for i in ind:
+        for i in ind:		# These are fudge factors to turn samples into ms. 
             if ( DM[i] < 150):
                 boxcar = Downfact[i]
             elif ( 150<= DM[i] < 823.2 ):
                 boxcar = Downfact[i] * 2
             elif ( 823.2 <= DM[i] < 1486.2):
-                boxcar = Downfact[i] * 5
+                boxcar = Downfact[i] * 2
             elif ( 1426.2 <= DM[i] < 2100):
-                boxcar = Downfact[i] * 10
+                boxcar = Downfact[i] * 2
             print "%.2f seconds, %.2f Sigma event detected at a DM of %.2f with a boxcar of: %d ms" % (Time[i], Sigma[i], DM[i], boxcar)
 
     fig.canvas.mpl_connect('pick_event', onpick)
@@ -351,7 +351,25 @@ def slice(infile, dm=None, timerange=None, sigma=None, downfact=None):
             data = [row for row in data if sigma <= row.split()[1]  ]
         elif type(sigma) == type([]):
             data = [row for row in data if sigma[0] <= row.split()[1] <= sigma[1]]
+            
 
+if __name__ == '__main__':
 
+	modes=['interactive','movie']
+    from optparse import OptionParser, OptionGroup
+    parser=OptionParser(description="A python tool to plot, flag, and do otherwise with singlepulse search data from PRESTO")
+    parser.add_option("-m", "--mode", type="choice", choices=['interactive','movie'], help="Mode you want to run. {0}".format(modes))
+	parser.add_option("--dm_range", action="store", type="string", nargs=2, default=(0,2000), help="(Not yet implemented) The lowest and highest DM to plot. [default=%default]")
+	parser.add_option("--obsid", action="store", type="string", help="Observation ID or other basename for files. [No default]")
+	parser.add_option("--threshold", action="store", type="float", default=5.0, help="S/N threshold. [default=%default]")
+	
+    (opts, args) = parser.parse_args()
+    if opts.mode == 'movie':
+    	singlepulse_plot(basename=opts.obsid, DMvTime=1, StatPlots=True, raw = False, threshold=opts.threshold, movie=True)
+	elif opts.mode == 'interactive':
+		singlepulse_plot(basename=opts.obsid, DMvTime=1, StatPlots=True, raw=False, threshold=opts.threshold, movie=False)
+    else:
+        print "Somehow your non-standard mode snuck through. Try again with one of {0}".format(modes)
+        quit()
 
 
