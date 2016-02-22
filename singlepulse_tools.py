@@ -283,7 +283,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
 #	leg = ax1.legend()
          
     #plt.colorbar(sc, label="Sigma", pad=0.01) 
-    plt.colorbar(sc, label="Downfact", pad=0.01)
+#    plt.colorbar(sc, label="Downfact", pad=0.01)
     # BWM: can't seem to get the bottom plot to extend the entire width when the color bar is active.
     fig.subplots_adjust(hspace=0.2, wspace=0.5)
 
