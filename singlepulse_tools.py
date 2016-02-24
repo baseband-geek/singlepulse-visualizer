@@ -6,7 +6,6 @@ import numpy as np
 import matplotlib
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
-#from matplotlib.widgets import Slider, Button, RadioButtons
 from pulsar_tools import disp_delay
 import math
 
@@ -70,6 +69,48 @@ class SPList:
 #    sp_list = SPList(sp)
 #
 #    return sp_list
+
+
+def sort_singlepulse(basename, directory='.'):
+    """
+    Accepts the base name (usually Observation ID) and the directory where the relevant files are located. 
+    If no directory argument is given, assumes all files are in current working directory (.)
+    """
+    #from itertools import imap,groupby
+    from operator import itemgetter
+    from os import listdir
+
+    #def sort_uniq(sequence):
+        # sort by the DM and then by the S/N, keeping only unique events
+    #    return imap(itemgetter(0,1), groupby(sorted(sequence)))
+
+    # grab all files with relevant basename in current directory
+    base_files = sorted([f for f in listdir(directory) if f.startswith(basename)])
+    sp_files = [s for s in base_files if s.endswith('.singlepulse') and '_DM' in s]
+    
+
+    sp_events = []
+    for sp in sp_files:
+        data = np.genfromtxt(sp, comments='#', skip_header=1)
+        for d in data:
+            sp_events.append(np.append(d, sp.replace('.singlepulse', '.inf')).tolist())
+    
+    for s in sp_events:
+        s[0]=float(s[0])
+        s[1]=float(s[1])
+        s[2]=float(s[2])
+        s[3]=int(float(s[3]))
+        s[4]=int(float(s[4]))
+
+    # create a list of tuples, keeping only unique pulse events
+    ordered = sorted(set(map(tuple, sp_events)), key=itemgetter(2))
+
+    with open(basename+'.singlepulse','wb') as f:
+        f.write('{0:10} {1:10} {2:10} {3:10} {4:10} {5}\n'.format('#DM','Sigma','Time(s)','Sample',\
+                                                                'Downfact','inf_file'))
+        for event in ordered:
+            f.write(''.join('{0:10} {1:10} {2:10} {3:10} {4:10} {5}\n'.format(*event)))
+
 
 
 
@@ -283,7 +324,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
 #	leg = ax1.legend()
          
     #plt.colorbar(sc, label="Sigma", pad=0.01) 
-#    plt.colorbar(sc, label="Downfact", pad=0.01)
+    #plt.colorbar(sc, label="Downfact", pad=0.01)
     # BWM: can't seem to get the bottom plot to extend the entire width when the color bar is active.
     fig.subplots_adjust(hspace=0.2, wspace=0.5)
 
