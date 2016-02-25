@@ -21,18 +21,18 @@ from math import pi,sqrt
 
 
 
-def disp_delay(freq1=184.975, freq2=200.335, DM=0.0):
+def disp_delay(freq1=0.184975, freq2=0.200335, DM=0.0):
 	"""
-	Accepts two frequencies as input (low then high, in MHz) as well as a 
-	DM (in pc/cm^3) and reports the delay in seconds.
+	Accepts two frequencies as input (low then high, in GHz) as well as a 
+	DM (in pc/cm^3) and reports the delay in milliseconds (ms).
 	Default frequncies: 184.975 and 200.355 MHz, default DM=0.0 pc/cm^3
 	"""
 
 	# constant from analytic plasma dispersion
 	A = e.value**2 / (8 * pi**2 * m_e.value * c.value * eps0.value)
 	
-	# convert into units: MHz^2 cm^3 s / pc
-	A = A * (1.0/1.0e6)**2 * (1e6) * pc.to('m').value
+	# convert into units: GHz^2 cm^3 ms / pc
+	A = A * (1.0/1.0e9)**2 * (1e6) * (1e3) *  pc.to('m').value
 
 	del_t = A * DM * ((freq1)**(-2) - (freq2)**(-2))
 
@@ -186,7 +186,7 @@ def light_cyl_radius(p=1.0):
 	
 	
 if __name__ == '__main__':
-	print "Testing dispersion delay (s) with freq1=100MHz, freq2=200MHz and DM=100pc/cm^3:",disp_delay(100.0, 200.0, 100.0)
+	print "Testing dispersion delay (s) with freq1=100MHz, freq2=200MHz and DM=100pc/cm^3:",disp_delay(0.1, 0.2, 100.0)
 	print "Testing E_rot (J), with P=0.0333s:",E_rot(0.0333)
 	print "Testing E_loss (J/s), with P=0.0333s and Pdot=4.209e-13:",E_loss(0.0333, 4.209e-13)
 	print "Testing B_surf (Gauss) with P=0.0333s and Pdot=4.209e-13:",min_mag_field(0.0333, 4.209e-13)
