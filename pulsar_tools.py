@@ -4,6 +4,7 @@
 A set of (potentially) handy functions for quickly calculating common 
 physical properties of pulsars. These include:
 
+    -- retrive pulsar info from PSRCAT:             get_pulsar
     -- spin period/frequncy conversion:             freq_period_convert
     -- dispersion delay:                            disp_delay
     -- rotational energy:                           E_rot
@@ -21,6 +22,139 @@ physical properties of pulsars. These include:
 """
 from astropy.constants import c,m_e,e,pc,eps0
 from math import pi,sqrt
+
+
+def get_pulsar(name):
+	"""
+	Accepts pulsar name (J or B name), accesses pulsar parameters from PSRCAT and calculates
+	all physical properties available. Property value defaults to None if required parameter 
+	from PSRCAT is missing.
+	Returns a dictionary of pulsar parameters and calculated quantities.
+
+	Looks for PSRCAT directory by accessing the environment variable 'PSRCAT_DIR'. 
+	This should point to the directory where the PSRCAT database and binary executable are located.
+	"""
+	from subprocess import Popen,PIPE
+	from os import getenv,listdir
+	import sys
+
+	print "Searching PSRCAT for pulsar {} ...".format(name)
+	
+	# find where PSRCAT resides
+	try:
+		psrcat_dir = getenv("PSRCAT_DIR")
+	except TypeError:
+		print "***WARNING: Environment variable PSRCAT_DIR is not defined." 
+		print "***NOTE: Please set PSRCAT_DIR to point at the directory containing psrcat.db "\
+		    "and the binary executable."
+
+	# double check that psrcat.db and psrcat executable are in PSRCAT_DIR
+	if 'psrcat' and 'psrcat.db' in listdir(psrcat_dir):
+		psrcat = psrcat_dir + '/psrcat'
+		psrcat_db = psrcat_dir + '/psrcat.db'
+	else:
+		print "PSRCAT_DIR does not point to the location of psrcat.db and psrcat. Exitting."
+		sys.exit(0)
+
+
+	# call PSRCAT for the pulsar name
+	args = [psrcat, "-db_file", psrcat_db, "-o", "short_csv", "-nohead", "-nonumber",\
+			"-c", "PSRJ PSRB RAJ DECJ RAJD DECJD GL GB DM F0 F1 F2 W50 W10 RM", name]
+	psr = Popen(args, stdout=PIPE).communicate()[0]
+	
+	# convert output string into list:
+	#        [PSRJ, PSRB, RAJ, DECJ, RAJD, DECJD, GL, GB, DM, F0, F1, F2, W50, W10, RM]
+	psr = psr.strip().split(';')[:-1]
+
+	# replace and "*" with None
+	psr = [None if p is '*' else p for p in psr]
+
+	psrj, psrb, ra, dec, ra_deg, dec_deg, gl, gb, dm, f0, f1, f2, w50, w10, rm = psr
+	print "!!NOTE: Pulsar parameters will be None if not found in PSRCAT!!"
+	print "Right ascension (J2000): {}".format(ra)
+	print "Declination (J2000): {}".format(dec)
+	print "Dispersion measure, DM (pc/cm^3): {}".format(dm)
+	print "Spin frequency, f0 (Hz): {}".format(f0)
+	print "Spin frequency 1st time-derivative, f1 (Hz/Hz): {}".format(f1)
+	print "Spin frequency 2nd time-derivative, f2 (1/Hz): {}".format(f2)
+	print "Pulse width at 50%, W50 (ms): {}".format(w50)
+	print "Pulse width at 10%, W10 (ms): {}".format(w10)
+	print "Rotation measure, RM (rad/m^2): {}".format(rm)
+	print '\n'+50*"="
+
+	# output all calculable quantities:
+	print "Producing all calculable quantities for the given pulsar: {}".format(name)
+	print "If quantity is not calculable, will be displayed as None.\n"
+
+	if dm:
+		ddelay = disp_delay(0.185,0.21572,float(dm))
+	else:
+		ddelay = None
+
+	
+	if dm and rm:
+		b_los = mean_parallel_B(float(rm),float(dm))
+	else:
+		b_los = None
+
+
+	if f0:
+		p0 = freq_period_convert(float(f0))
+		erot = E_rot(p0)
+		pcr = polar_cap_radius(p0)
+		lcr = light_cyl_radius(p0)
+	else:
+		erot = None
+		pcr = None
+		lcr = None
+		
+
+	if f0 and f1:
+		p0, p1 = freq_period_convert(float(f0),float(f1))
+		eloss = E_loss(p0,p1)
+		bmin = min_mag_field(p0,p1)
+		mag_E_density = mag_energy_density(bmin)
+		tau = char_age(p0,p1)
+		pcpd = polar_cap_plasma_density(p0,p1)
+		lcrB = light_cyl_B(p0,p1)
+	else:
+		eloss = None
+		bmin = None
+		uB = None
+		tau = None
+		pcpd = None
+		lcrB = None
+
+
+	if f0 and f1 and f2:
+		p0, p1, p2 = freq_period_convert(float(f0),float(f1),float(f2))
+		n = braking_index(p0,p1,p2)
+	else:
+		n = None
+
+
+	print "Dispersion delay (ms) between 185 and 215.72 MHz (MWA bandwidth, 30.72 MHz): {}".format(ddelay)
+	print "Rotational energy (J): {}".format(erot)	
+	print "Rotational energy loss rate (J/s): {}".format(eloss)	
+	print "Minimum surface magnetic field strength, Bmin (G): {}".format(bmin)
+	print "Mean parallel magnetic field component (G) along the LOS: {}".format(b_los)
+	print "Magnetic energy density (J/m^3), assuming B=Bmin: {}".format(mag_E_density)
+	print "Characteristic age (yr): {}".format(tau)
+	print "Braking index: {}".format(n)
+	print "Polar cap plasma density (particles/cm^3): {}".format(pcpd)
+	print "Polar cap radius (m): {}".format(pcr)
+	print "Light cylinder radius (m): {}".format(lcr)
+	print "Magnetic field strength at light cylinder radius: {}".format(lcrB)
+	print 50*"="
+
+
+	psr_dict = {'psrj':psrj, 'psrb':psrb, 'ra_str':ra, 'dec_str':dec, 'ra':ra_deg, 'dec':dec_deg,\
+			    'l':gl, 'b':gb, 'dm':dm, 'f0':f0, 'f1':f1, 'f2':f2, 'w50':w50, 'w10':w10,\
+			    'rm':rm, 'mwa_bw_delay':ddelay, 'Erot':erot, 'Eloss':eloss, 'bmin':bmin,\
+			    'b_parallel':b_los, 'u_B':mag_E_density, 'char_age':tau, 'braking_ind':n,\
+			    'pc_plasma_density':pcpd, 'pc_radius':pcr, 'lcyl_radius':lcr, 'lcyl_B':lcrB}
+
+	return psr_dict
 
 
 
@@ -139,7 +273,7 @@ def mean_parallel_B(rm=0.0, dm=100.0):
 
 	b_los = 1.23 * (rm / dm)
 
-	return b_los / 1e6
+	return b_los / 1.0e6
 
 
 
