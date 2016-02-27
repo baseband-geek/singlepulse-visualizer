@@ -360,12 +360,4 @@ def light_cyl_B(p0=1.0, p1=1.0e-12):
 	
 	
 if __name__ == '__main__':
-	print "Testing dispersion delay (s) with freq1=100MHz, freq2=200MHz and DM=100pc/cm^3:",disp_delay(0.1, 0.2, 100.0)
-	print "Testing E_rot (J), with P=0.0333s:",E_rot(0.0333)
-	print "Testing E_loss (J/s), with P=0.0333s and Pdot=4.209e-13:",E_loss(0.0333, 4.209e-13)
-	print "Testing B_surf (Gauss) with P=0.0333s and Pdot=4.209e-13:",min_mag_field(0.0333, 4.209e-13)
-	print "Testing U_B with B=4e12 Gauss:",mag_energy_density(4e12)
-	print "Testing char. age (years) with P=0.0333s and Pdot=4.209e-13:",char_age(0.0333, 4.209e-13)
-	print "Testing frequency and period conversion..."
-	print "f=29.946923 Hz, fdot=-3.77535E-10:",freq_period_convert(29.946923, -3.77535e-10)
-	print "P=0.0333 s, Pdot=4.209e-13:",freq_period_convert(0.0333, 4.209e-13)
+	get_pular('B0531+21')
