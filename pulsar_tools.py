@@ -360,4 +360,4 @@ def light_cyl_B(p0=1.0, p1=1.0e-12):
 	
 	
 if __name__ == '__main__':
-	get_pular('B0531+21')
+	get_pulsar('B0531+21')
