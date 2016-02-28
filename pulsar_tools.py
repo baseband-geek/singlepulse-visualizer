@@ -41,25 +41,26 @@ def get_pulsar(name):
 	print "Searching PSRCAT for pulsar {} ...".format(name)
 	
 	# find where PSRCAT resides
-	try:
-		psrcat_dir = getenv("PSRCAT_DIR")
-	except TypeError:
+	psrcat_dir = getenv("PSRCAT_DIR")
+	if psrcat_dir is None:
 		print "***WARNING: Environment variable PSRCAT_DIR is not defined." 
 		print "***NOTE: Please set PSRCAT_DIR to point at the directory containing psrcat.db "\
 		    "and the binary executable."
+		sys.exit(0)
 
-	# double check that psrcat.db and psrcat executable are in PSRCAT_DIR
-	if 'psrcat' and 'psrcat.db' in listdir(psrcat_dir):
-		psrcat = psrcat_dir + '/psrcat'
-		psrcat_db = psrcat_dir + '/psrcat.db'
-	else:
+	elif 'psrcat' and 'psrcat.db' not in listdir(psrcat_dir):
 		print "PSRCAT_DIR does not point to the location of psrcat.db and psrcat. Exitting."
 		sys.exit(0)
+
+	else:
+		psrcat = psrcat_dir + '/psrcat'
+		psrcat_db = psrcat_dir + '/psrcat.db'
 
 
 	# call PSRCAT for the pulsar name
 	args = [psrcat, "-db_file", psrcat_db, "-o", "short_csv", "-nohead", "-nonumber",\
 			"-c", "PSRJ PSRB RAJ DECJ RAJD DECJD GL GB DM F0 F1 F2 W50 W10 RM", name]
+
 	psr = Popen(args, stdout=PIPE).communicate()[0]
 	
 	# convert output string into list:
@@ -71,6 +72,7 @@ def get_pulsar(name):
 
 	psrj, psrb, ra, dec, ra_deg, dec_deg, gl, gb, dm, f0, f1, f2, w50, w10, rm = psr
 	print "!!NOTE: Pulsar parameters will be None if not found in PSRCAT!!"
+	print 50*"="
 	print "Right ascension (J2000): {}".format(ra)
 	print "Declination (J2000): {}".format(dec)
 	print "Dispersion measure, DM (pc/cm^3): {}".format(dm)
@@ -87,13 +89,13 @@ def get_pulsar(name):
 	print "If quantity is not calculable, will be displayed as None.\n"
 
 	if dm:
-		ddelay = disp_delay(0.185,0.21572,float(dm))
+		ddelay = disp_delay(0.185, 0.21572, float(dm))
 	else:
 		ddelay = None
 
 	
 	if dm and rm:
-		b_los = mean_parallel_B(float(rm),float(dm))
+		b_los = mean_parallel_B(float(rm), float(dm))
 	else:
 		b_los = None
 
@@ -110,13 +112,13 @@ def get_pulsar(name):
 		
 
 	if f0 and f1:
-		p0, p1 = freq_period_convert(float(f0),float(f1))
-		eloss = E_loss(p0,p1)
-		bmin = min_mag_field(p0,p1)
+		p0, p1 = freq_period_convert(float(f0), float(f1))
+		eloss = E_loss(p0, p1)
+		bmin = min_mag_field(p0, p1)
 		mag_E_density = mag_energy_density(bmin)
-		tau = char_age(p0,p1)
-		pcpd = polar_cap_plasma_density(p0,p1)
-		lcrB = light_cyl_B(p0,p1)
+		tau = char_age(p0, p1)
+		pcpd = polar_cap_plasma_density(p0, p1)
+		lcrB = light_cyl_B(p0, p1)
 	else:
 		eloss = None
 		bmin = None
@@ -127,8 +129,8 @@ def get_pulsar(name):
 
 
 	if f0 and f1 and f2:
-		p0, p1, p2 = freq_period_convert(float(f0),float(f1),float(f2))
-		n = braking_index(p0,p1,p2)
+		p0, p1, p2 = freq_period_convert(float(f0), float(f1), float(f2))
+		n = braking_index(p0, p1, p2)
 	else:
 		n = None
 
@@ -152,7 +154,7 @@ def get_pulsar(name):
 			    'l':gl, 'b':gb, 'dm':dm, 'f0':f0, 'f1':f1, 'f2':f2, 'w50':w50, 'w10':w10,\
 			    'rm':rm, 'mwa_bw_delay':ddelay, 'Erot':erot, 'Eloss':eloss, 'bmin':bmin,\
 			    'b_parallel':b_los, 'u_B':mag_E_density, 'char_age':tau, 'braking_ind':n,\
-			    'pc_plasma_density':pcpd, 'pc_radius':pcr, 'lcyl_radius':lcr, 'lcyl_B':lcrB}
+			    'pc_plas_dens':pcpd, 'pc_radius':pcr, 'lcyl_radius':lcr, 'lcyl_B':lcrB}
 
 	return psr_dict
 
