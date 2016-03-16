@@ -4,11 +4,9 @@
 
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('GTKAgg')
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
-import matplotlib.animation as manimation
-from joblib import Parallel, delayed
 
 #from matplotlib.widgets import Slider, Button, RadioButtons
 from pulsar_tools import disp_delay
@@ -161,10 +159,9 @@ def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=
     np.savetxt(basename+'.flag', flags, fmt='%d')
     # call flag.sh script to create masked singlepulse file
     check_call(['flag.sh', basename])
-    #Popen(['flag.sh', basename]).communicate()[0]
 
 
-def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, threshold=5.0, obsid=None):
+def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, threshold=5.0, obsid=None, dm_pairs=[[0,2000]]):
     """
     Plots up the flagged data, should switch to using genfromtxt when I have the time.
        BWM: switched to using load_file to load singlepulse and flags. Uses genfromtext.
@@ -179,7 +176,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
         flags = load_file(basename + '.flag')
 
 
-    data = SPList(data.list[np.where(data.sigma_list >= threshold)])
+    data = SPList(data.list[data.sigma_list >= threshold])
 
     Downfact_float = data.downfact_list.astype(float)
 
@@ -193,113 +190,105 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
     last_time = data.time_list.max()
     
     def make_frame(t_frame):
-#    for t in range(t_0,t_0+num_steps):
-#    for t in range(t_0, int(last_time/time_step)):
-		print "Making frome {0} out of {1}".format((t_frame+1), int(last_time/time_step))
-		time= time_step*t_frame
-		fig = plt.figure()
-#		temp_data = SPList(data.list[np.where( data.time_list <= (time + time_span))])
-		temp_data = SPList(data.list[ (time <= data.time_list) & ( data.time_list <= (time + time_span))])
-		#    temp_data=[pulse  for pulse in data if (timerange[0] <= pulse.list.time <= timerange[1])] 
-		if StatPlots:
-			ax0 = fig.add_subplot(231)
-			try:
-				plt.hist(temp_data.sigma_list, histtype='step', bins=60)
-			except ValueError:
-				print "Plot contains no points"
-			ax0.set_xlabel('Signal-to-Noise')
-			ax0.set_xlim(data.sigma_list.min()-0.5)
-			ax0.set_ylabel('Number of Pulses')	
+        print "Making fromes for timestep {0} out of {1}".format((t_frame+1), int(last_time/time_step))
+        time= time_step*t_frame
+        timerange_data = SPList(data.list[ (time <= data.time_list) & ( data.time_list <= (time + time_span))])
+        for dm_pair in dm_pairs:
+            fig = plt.figure()
+            temp_data = SPList(timerange_data.list[(dm_pair[0] <= timerange_data.dm_list) & ( timerange_data.dm_list <= dm_pair[1])])
+            if StatPlots:
+                ax0 = fig.add_subplot(231)
+                try:
+                    plt.hist(temp_data.sigma_list, histtype='step', bins=60)
+                except ValueError:
+                    print "Plot contains no points"
+                ax0.set_xlabel('Signal-to-Noise')
+                ax0.set_xlim(data.sigma_list.min()-0.5)
+                ax0.set_ylabel('Number of Pulses')	
+                ax1 = fig.add_subplot(232)
+                try:
+                    plt.hist(temp_data.dm_list, histtype='step', bins=int(0.5 * len(set(temp_data.dm_list))))
+                except ValueError:
+                    print "Plot contains no points"
+                ax1.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)')
+                ax1.set_ylabel('Number of Pulses')
+                ax2 = fig.add_subplot(233, sharex=ax1) # BWM: now shares x-axis with ax1, so changing DM on one will change range on the other
+                try:
+                    plt.scatter(temp_data.dm_list, temp_data.sigma_list, alpha=0.9)
+                except ValueError:
+                    print "Plot contains no points"
+                ax2.set_ylabel('Signal-to-Noise')
+                ax2.set_xlabel('DM ($\mathrm{p\, cm^{-3}}$)')
+                try:
+                    ax2.set_xlim([0, temp_data.dm_list.max()])
+                except ValueError:
+                    ax2.set_xlim([dm_pair[0], dm_pair[1]])
+                try:
+                    ax2.set_ylim([data.sigma_list.min(), 1.1 * temp_data.sigma_list.max()])	
+                except ValueError:
+                    ax2.set_ylim([data.sigma_list.min(), 1.1 * data.sigma_list.max()])
+                ax3 = fig.add_subplot(212)
+            else:
+                ax3 = fig.add_subplot(111)
+            if not raw:
+                if any(isinstance(l, np.ndarray) for l in flags):
+                    for flag in flags:
+                        flag_area = patches.Rectangle((int(dm_pair[0]), float(flag[0]) ), \
+														  (int(dm_pair[1])),\
+															  (float(flag[1]) - float(flag[0])), \
+															  edgecolor='0', facecolor='0.66')
+                        ax3.add_patch(flag_area)
 
-			ax1 = fig.add_subplot(232)
-			try:
-				plt.hist(temp_data.dm_list, histtype='step', bins=int(0.5 * len(set(temp_data.dm_list))))
-			except ValueError:
-				print "Plot contains no points"
-			ax1.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)')
-			ax1.set_ylabel('Number of Pulses')
-			ax2 = fig.add_subplot(233, sharex=ax1)	 
-			# BWM: now shares x-axis with ax1, so changing DM on one will change range on the other
-			try:
-				plt.scatter(temp_data.dm_list, temp_data.sigma_list, alpha=0.9)
-			except ValueError:
-				print "Plot contains no points"
-			#plt.scatter(temp_data.dm_list, temp_data.sigma_list, c=Downfact_float, cmap=cm, alpha=0.9)
-			ax2.set_ylabel('Signal-to-Noise')
-			ax2.set_xlabel('DM ($\mathrm{p\, cm^{-3}}$)')
-			try:
-				ax2.set_xlim([0, temp_data.dm_list.max()])
-			except ValueError:
-				ax2.set_xlim([0, data.dm_list.max()])
-			try:
-				ax2.set_ylim([data.sigma_list.min(), 1.1 * temp_data.sigma_list.max()])	
-			except ValueError:
-				ax2.set_ylim([data.sigma_list.min(), 1.1 * data.sigma_list.max()])
+                else:
+                    flag_area = patches.Rectangle((float(flags[0]), dm_pair[0]), \
+													  (float(flags[1]) - float(flags[0])), \
+													  (dm_pair[1]), \
+													  edgecolor='0', facecolor='0.66')
+                    ax3.add_patch(flag_area)
 
-			ax3 = fig.add_subplot(212)	
+			# TODO: need to figure out how (if at all) we can make the axis sharing work 
+			#       for x-axis to y-axis share	
 
-		else:
-			ax3 = fig.add_subplot(111)
-		if not raw:
-			if any(isinstance(l, np.ndarray) for l in flags):
-				for flag in flags:
-					flag_area = patches.Rectangle((0, float(flag[0]) ), \
-													  (2000),\
-														  (float(flag[1]) - float(flag[0])), \
-														  edgecolor='0', facecolor='0.66')
-					ax3.add_patch(flag_area)
+			#	ax3.set_title("Single Pulse Sigma")    
+            ax3.set_ylabel('Time (s)')
+            ax3.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)')
+            ax3.set_xlim([dm_pair[0], dm_pair[1]])
+            ax3.set_ylim([time, time + time_span])
+            #cm = plt.cm.get_cmap('gist_rainbow')
+            # grab axis3 size to allocate marker sizes
+            bbox_pix = ax3.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+            width, height = bbox_pix.width, bbox_pix.height
+            area = width * height # axes area in inches^2 (apparently)
 
-			else:
-				flag_area = patches.Rectangle((float(flags[0]), 0), \
-												  (float(flags[1]) - float(flags[0])), \
-												  (2000), \
-												  edgecolor='0', facecolor='0.66')
-				ax3.add_patch(flag_area)
+            #TODO: need to try and use something like percentiles to make sure that just one
+            # big pulse doesn't swamp the sizes or colorbars.
 
-		# TODO: need to figure out how (if at all) we can make the axis sharing work 
-		#       for x-axis to y-axis share	
+            Size = (3. * area / 2.) * (data.sigma_list**2 / np.percentile(data.sigma_list, 99.5))
 
-		#	ax3.set_title("Single Pulse Sigma")    
-		ax3.set_ylabel('Time (s)')
-		ax3.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)')
-		ax3.set_xlim([0, 2000])
-		ax3.set_ylim([time, time + time_span])
-		#cm = plt.cm.get_cmap('gist_rainbow')
 
-		# grab axis3 size to allocate marker sizes
-		bbox_pix = ax3.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-		width, height = bbox_pix.width, bbox_pix.height
-		area = width * height # axes area in inches^2 (apparently)
+            #    sc=ax3.scatter(Time,DM, s=Size, c=Sigma, vmin=min(Sigma), vmax=max(Sigma),\
+            #                       cmap=cm, picker=1)
+            sc = ax3.scatter(data.dm_list, data.time_list, s=Size, c=Downfact_float, cmap=cm, \
+                                 vmin=Downfact_float.min(), vmax=Downfact_float.max(), facecolor='none')
+            #	leg = ax1.legend()
 
-		#TODO: need to try and use something like percentiles to make sure that just one
-		# big pulse doesn't swamp the sizes or colorbars.
-		
-		Size = (3. * area / 2.) * (data.sigma_list**2 / np.percentile(data.sigma_list, 99.5))
-		
-		
-		#    sc=ax3.scatter(Time,DM, s=Size, c=Sigma, vmin=min(Sigma), vmax=max(Sigma),\
-		#                       cmap=cm, picker=1)
-		sc = ax3.scatter(data.dm_list, data.time_list, s=Size, c=Downfact_float, cmap=cm, \
-							 vmin=Downfact_float.min(), vmax=Downfact_float.max(), facecolor='none')
-		#	leg = ax1.legend()
-	 
-		#    plt.colorbar(sc, label="Sigma", pad=0.01) 
-		#    plt.colorbar(sc, label="Downfact", pad=0.01)
-		# BWM: can't seem to get the bottom plot to extend the entire width when the color bar is active. SET: removing bar for now for just this reason
-		fig.subplots_adjust(hspace=0.2, wspace=0.5)
+            #    plt.colorbar(sc, label="Sigma", pad=0.01) 
+            #    plt.colorbar(sc, label="Downfact", pad=0.01)
+            # BWM: can't seem to get the bottom plot to extend the entire width when the color bar is active. SET: removing bar for now for just this reason
+            #fig.subplots_adjust(hspace=0.2, wspace=0.5)
 
-		fig.suptitle('Single Pulse Search results for ' + basename) 
-	#		plt.tight_layout(w_pad=0.1, h_pad=0.1)
-	#		writer.grab_frame()
-		f_name="_tmp{0:0>10}.png".format(t_frame)
-		plt.savefig(f_name)
-	#		plt.savefig(f_name, bbox_inches='tight')
-		plt.close(fig)
+            fig.suptitle('Single Pulse Search results for ' + basename) 
+            #		plt.tight_layout(w_pad=0.1, h_pad=0.1)
+            #		writer.grab_frame()
+            f_name="_dm{0:0>4}_{1:0>4}_tmp{2:0>10}.png".format(dm_pair[0],dm_pair[1],t_frame)
+            #		plt.savefig(f_name)
+            plt.savefig(f_name, bbox_inches='tight', dpi=400)
+            plt.close(fig)
     
-    [make_frame(t) for t in range(t_0, int(last_time/time_step))]
-#    Parallel(n_jobs=4)(delayed(make_frame)(t) for t in range(t_0,t_0+num_steps))
-    make_movie="avconv -f image2 -i _tmp%10d.png {0}_sp.mp4".format(obsid)
-    call(make_movie,shell=True)
+    [make_frame(t) for t in range(t_0, int((last_time-time_span)/time_step))]
+    for dm_pair in dm_pairs:
+        make_movie="avconv -f image2 -i _dm{0:0>4}_{1:0>4}_tmp%10d.png {2}_dm_{0}_{1}_sp.mp4".format(dm_pair[0], dm_pair[1], obsid)
+        call(make_movie,shell=True)
     obs_stats(data.time_list, flags)
 
 
@@ -309,12 +298,15 @@ if __name__ == '__main__':
 
     from optparse import OptionParser, OptionGroup
     parser = OptionParser(description="A python tool to plot, flag, and do otherwise with singlepulse search data from PRESTO")
-    parser.add_option("--dm_range", action="store", type="string", nargs=2, default=(0,2000), help="(Not yet implemented) The lowest and highest DM to plot. [default=%default]")
+    parser.add_option("--dm_ranges", action="store", type="string", default="0,500,1000,1500,2000", help="A list of the DM ranges you want plotted. Write as a comma separated integers. [default=%default]")
     parser.add_option("--obsid", action="store", type="string", help="Observation ID or other basename for files. [No default]")
     parser.add_option("--threshold", action="store", type="float", default=5.0, help="S/N threshold. [default=%default]")
     parser.add_option("--raw", action="store_true", default=False, help="Plots the data without any flagging [default=%default]")
     
-    (opts, args) = parser.parse_args()
-	
-    singlepulse_plot(basename=opts.obsid, DMvTime=1, StatPlots=True, raw = opts.raw, threshold=opts.threshold, obsid=opts.obsid)
+    (opts, args) = parser.parse_args()	# Parse string into a list, then build a list of pairs for dm ranges to be plotted
+    opts.dm_ranges = [dm for dm in opts.dm_ranges.split(",")]
+    dm_pairs = [[int(i),int(j)] for i,j in zip(opts.dm_ranges[:-1], opts.dm_ranges[1:])]
+    dm_pairs.insert(0,[int(opts.dm_ranges[0]),int(opts.dm_ranges[-1])])
+    
+    singlepulse_plot(basename=opts.obsid, DMvTime=1, StatPlots=True, raw = opts.raw, threshold=opts.threshold, obsid=opts.obsid, dm_pairs=dm_pairs)
 
