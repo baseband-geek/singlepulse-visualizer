@@ -4,10 +4,12 @@
 
 import numpy as np
 import matplotlib
+matplotlib.use('Agg')
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from pulsar_tools import disp_delay
 import math
+import sys
 
 
 
@@ -18,12 +20,13 @@ class SinglePulse:
     (i.e. S/N, box-car window size, DM, etc.). This is for ease of access during 
     plotting/other interactive stuff.
     """
-    def __init__(self, DM, sig, t, samp, dfact):
-        self.dm       = DM          # float
-        self.sigma    = sig      # float
-        self.time     = t         # float
-        self.sample   = samp    # integer
-        self.downfact = dfact # integer
+    def __init__(self, DM, sig, t, samp, dfact, inf):
+        self.dm       = DM     
+        self.sigma    = sig    
+        self.time     = t      
+        self.sample   = samp   
+        self.downfact = dfact  
+        self.inf_file = inf    
 
     def print_params(self):
         print "DM:",self.dm
@@ -31,6 +34,7 @@ class SinglePulse:
         print "Time:",self.time
         print "Sample:",self.sample
         print "Downfactor:",self.downfact
+        print "inf_file:",self.inf_file
 
 
 class SPList:
@@ -38,7 +42,7 @@ class SPList:
     A class to contain a number of SinglePulse objects in a numpy.array and grant easy acces to paramter 
     lists of those objects. Contains the original list of SinglePulse objects, and a list 
     of each object's: 
-         DM, sigma, time, sample and downfactor.
+         DM, sigma, time, sample, downfactor and inf_file name.
     """
     def __init__(self, sp_list):
         self.list          = np.array(sp_list)
@@ -47,8 +51,22 @@ class SPList:
         self.time_list     = np.array([sp.time for sp in sp_list])
         self.sample_list   = np.array([sp.sample for sp in sp_list])
         self.downfact_list = np.array([sp.downfact for sp in sp_list])
-        
+        self.inf_list      = np.array([sp.inf_file for sp in sp_list])
+    
+    #attr_list = [v[0] for v in vars(self).items()]
+    #def __iter__(self):
+    #    return self
 
+    #def next(self):
+        
+        
+    def print_lists(self):
+        print "DM list:",self.dm_list
+        print "Sigma list:",self.sigma_list
+        print "Time list:",self.time_list
+        print "Sample list:",self.sample_list
+        print "Downfactor list:",self.downfact_list
+        print "Inf_file list:",self.inf_list
 
 
 #def make_data_points(data):
@@ -75,26 +93,25 @@ def sort_singlepulse(basename, directory='.'):
     """
     Accepts the base name (usually Observation ID) and the directory where the relevant files are located. 
     If no directory argument is given, assumes all files are in current working directory (.)
+
+    Creates a total singlepulse file from all singlpulse files with the given base name. 
+    Ensures unique entries only, and the file output is sorted in time (and therefore sample).
     """
-    #from itertools import imap,groupby
     from operator import itemgetter
     from os import listdir
-
-    #def sort_uniq(sequence):
-        # sort by the DM and then by the S/N, keeping only unique events
-    #    return imap(itemgetter(0,1), groupby(sorted(sequence)))
 
     # grab all files with relevant basename in current directory
     base_files = sorted([f for f in listdir(directory) if f.startswith(basename)])
     sp_files = [s for s in base_files if s.endswith('.singlepulse') and '_DM' in s]
     
-
+    # create a list of single pulse events from the .singlepulse file
     sp_events = []
     for sp in sp_files:
         data = np.genfromtxt(sp, comments='#', skip_header=1)
-        for d in data:
+        for d in data:                
             sp_events.append(np.append(d, sp.replace('.singlepulse', '.inf')).tolist())
     
+    # annoying but necessary type conversions for sorting
     for s in sp_events:
         s[0]=float(s[0])
         s[1]=float(s[1])
@@ -102,14 +119,14 @@ def sort_singlepulse(basename, directory='.'):
         s[3]=int(float(s[3]))
         s[4]=int(float(s[4]))
 
-    # create a list of tuples, keeping only unique pulse events
+    # create a list of tuples, keeping only unique pulse events. Output is a list of tuples
     ordered = sorted(set(map(tuple, sp_events)), key=itemgetter(2))
 
     with open(basename+'.singlepulse','wb') as f:
-        f.write('{0:10} {1:10} {2:10} {3:10} {4:10} {5}\n'.format('#DM','Sigma','Time(s)','Sample',\
+        f.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format('DM','Sigma','Time(s)','Sample',\
                                                                 'Downfact','inf_file'))
         for event in ordered:
-            f.write(''.join('{0:10} {1:10} {2:10} {3:10} {4:10} {5}\n'.format(*event)))
+            f.write(''.join('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(*event)))
 
 
 
@@ -119,16 +136,18 @@ def load_file(filename):
         print "No filename supplied to read..."
 
     elif filename.endswith('.singlepulse'):
-        DM       = np.genfromtxt(filename, comments="#", autostrip=True, usecols=0)
-        Sigma    = np.genfromtxt(filename, comments="#", autostrip=True, usecols=1)
-        Time     = np.genfromtxt(filename, comments="#", autostrip=True, usecols=2)
-        Sample   = np.genfromtxt(filename, comments="#", autostrip=True, usecols=3)
-        Downfact = np.genfromtxt(filename, comments="#", autostrip=True, usecols=4)
-    
-        sp = [SinglePulse(dm, sig, time, samp, dfact) for dm, sig, time, samp, dfact \
-                  in zip(DM, Sigma, Time, Sample, Downfact)]
+        DM       = np.genfromtxt(filename, comments="#", autostrip=True, usecols=0, skip_header=1)
+        Sigma    = np.genfromtxt(filename, comments="#", autostrip=True, usecols=1, skip_header=1)
+        Time     = np.genfromtxt(filename, comments="#", autostrip=True, usecols=2, skip_header=1)
+        Sample   = np.genfromtxt(filename, comments="#", autostrip=True, usecols=3, skip_header=1)
+        Downfact = np.genfromtxt(filename, comments="#", autostrip=True, usecols=4, skip_header=1)
+        inf_file = np.genfromtxt(filename, comments="#", autostrip=True, usecols=5, dtype=str, skip_header=1)
+
+        sp = [SinglePulse(dm, sig, time, samp, dfact, inf) for dm, sig, time, samp, dfact, inf \
+                  in zip(DM, Sigma, Time, Sample, Downfact, inf_file)]
 
         return SPList(sp)
+        #return sp
 
     elif filename.endswith('.flag'):
         flags = np.genfromtxt(filename ,comments="#", autostrip=True)
@@ -167,21 +186,6 @@ def obs_stats(time, flags):
     print "%.2f seconds flagged from %.2f seconds of data (%.2f percent)" % ( flag_time, time[-1], flag_time/time[-1]*100)
 
 
-#def max_nth_percent(n, data):
-#    """ 
-#    A function that returns the nth percent top value, planned use is for plotting
-#    :param n: the percentile value desired for return
-#    :param data: the iterable object searched through
-#    :return: nth percent largest value
-#    """
-#    import heapq
-#
-#    data=list(data)
-#    n=float(n)
-#
-#    return heapq.nlargest(int(len(data)*(n/100.0)), data)[-1]
-
-
 
 
 def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=3):
@@ -203,7 +207,6 @@ def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=
  
     i = 0 # initialize counter for new list
     flags = []
-    print bads
 
     if any(isinstance(b, np.ndarray) for b in bads):
         for bad in bads:
@@ -245,14 +248,27 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
     """
     if raw:
         data = load_file(basename + '.singlepulse')
-        flag_times = False
+        #flag_times = False
     else:
         #flag_times = load_file(basename+'.bad')
-        flagfile(basename)
+        try:
+            flagfile(basename) # BWM: should we be providing appropriate freqs and DM for this?
+        except:
+            print "No {}.bad file given. Creating one with entry [0 0]".format(basename)
+            f=open('{}.bad'.format(basename),'w')
+            f.write('0 0')
+            f.close()
+            print "Saved {}.bad".format(basename)
+            print "Retrying..."
+            flagfile(basename)
+
         data = load_file(basename + '_flagged.singlepulse')
         flags = load_file(basename + '.flag')
 
-
+    #for a in vars(data).items():
+    #    print a[0]
+    #print [v[0] for v in vars(data).items()]
+    #sys.exit(0)
     data = SPList(data.list[np.where(data.sigma_list >= threshold)])
 
     #DM = [float(row.split()[0]) for row in data if float(row.split()[1]) >= threshold]
@@ -273,14 +289,16 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
 
     if StatPlots:
         ax0 = fig.add_subplot(231)
-        plt.hist(data.sigma_list, histtype='step', bins=60)
+        plt.hist(data.sigma_list, histtype='step', bins=int(0.2 * len(set(data.sigma_list))))
         ax0.set_xlabel('Signal-to-Noise', fontsize=18)
         ax0.set_ylabel('Number of Pulses', fontsize=18)
+        ax0.set_xlim([data.sigma_list.min(), data.sigma_list.max()])
 
         ax1 = fig.add_subplot(232)
         plt.hist(data.dm_list, histtype='step', bins=int(0.5 * len(set(data.dm_list))))
         ax1.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)', fontsize=18)
         ax1.set_ylabel('Number of Pulses', fontsize=18)
+        ax1.set_xlim([data.dm_list.min(), data.dm_list.max()])
 
         ax2 = fig.add_subplot(233, sharex=ax1) 
         # BWM: now shares x-axis with ax1, so changing DM on one will change range on the other
@@ -288,7 +306,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
         ax2.set_ylabel('Signal-to-Noise', fontsize=18)
         ax2.set_xlabel('DM ($\mathrm{p\, cm^{-3}}$)', fontsize=18)
         ax2.set_xlim([data.dm_list.min(), data.dm_list.max()])
-        ax2.set_ylim([data.sigma_list.min(), 1.1 * data.sigma_list.max()])
+        ax2.set_ylim([data.sigma_list.min(), data.sigma_list.max()])
 
         ax3 = fig.add_subplot(212)
 
@@ -303,6 +321,10 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
     ax3.set_ylabel('DM ($\mathrm{pc\, cm^{-3}}$)', fontsize=18)
     ax3.set_ylim([data.dm_list.min(), data.dm_list.max()])
     ax3.set_xlim([data.time_list.min(), data.time_list.max()])
+    #ax3.set_ylabel('Time (s)', fontsize=18)
+    #ax3.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)', fontsize=18)
+    #ax3.set_ylim([data.time_list.min(), data.time_list.max()])
+    #ax3.set_xlim([data.dm_list.min(), data.dm_list.max()])
     #cm = plt.cm.get_cmap('gist_rainbow')
 
     # grab axis3 size to allocate marker sizes
@@ -312,15 +334,24 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
 
     #TODO: need to try and use something like percentiles to make sure that just one 
     # big pulse doesn't swamp the sizes or colorbars.
-    Size = (data.sigma_list / data.sigma_list.max())**2
-    Size = area * fig.dpi * (Size / Size.max())
+    print data.sigma_list.min()
+    print data.sigma_list.max()
+    print np.percentile(data.sigma_list, 99.5)
+    Size = (3. * area / 2.) * (data.sigma_list**2 / np.percentile(data.sigma_list, 99.5))
+    Size[np.where(Size > np.percentile(data.sigma_list, 99.5))] = (3. * area / 2.) * np.percentile(data.sigma_list, 99.5) 
+
+    #print len(Size[np.where(data.sigma_list>np.percentile(data.sigma_list, 99.5))])
+    print Size.min()
+    print Size.max()
 
     
     obs_stats(data.time_list, flags)
 #    sc=ax3.scatter(Time,DM, s=Size, c=Sigma, vmin=min(Sigma), vmax=max(Sigma),\
 #                       cmap=cm, picker=1)
     sc = ax3.scatter(data.time_list, data.dm_list, s=Size, c=Downfact_float, cmap=cm, \
-                         vmin=Downfact_float.min(), vmax=Downfact_float.max(), picker=1, facecolor='none')
+                         vmin=Downfact_float.min(), vmax=Downfact_float.max(), facecolor='none')
+#    sc = ax3.scatter(data.dm_list, data.time_list, s=Size, c=Downfact_float, cmap=cm, \
+#                         vmin=Downfact_float.min(), vmax=Downfact_float.max(), picker=1, facecolor='none')
 #	leg = ax1.legend()
          
     #plt.colorbar(sc, label="Sigma", pad=0.01) 
@@ -382,6 +413,8 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
     '''
     fig.suptitle('Single Pulse Search results for ' + basename) 
     #plt.tight_layout(w_pad=0.1, h_pad=0.1)
+    #plt.savefig('test.png')
+    #plt.close(fig)
     plt.show()
 
     #obs_stats(Time, flags)
@@ -389,34 +422,34 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
 
 
 
-def slice(infile, dm=None, timerange=None, sigma=None, downfact=None):
-    # Not properly implemented yet
-
-    data = read_singlepulse(infile)
-
-    slices = [None]*5
-
-    slice_map = {'dm':0, 'sigma':1, 'timerange':2, 'sample':3, 'downfact':4}
-
-
-
-
-    DM = [row.split()[0] for row in data]
-    Sigma = [row.split()[1] for row in data]
-    Time = [row.split()[2] for row in data]
-    Sample = [row.split()[3] for row in data]
-    Downfact = [row.split()[4] for row in data]
-
-    if dm:
-        if type(dm) == type(0) or type(0.0):
-            data = [row   for row in data if dm <= row.split()[0]]
-        elif type(dm) == type([]):
-            data = [row  for row in data if dm[0] <= row.split()[0] <= dm[1]]
-    if sigma:
-        if type(sigma) == type(0) or type(0.0):
-            data = [row for row in data if sigma <= row.split()[1]  ]
-        elif type(sigma) == type([]):
-            data = [row for row in data if sigma[0] <= row.split()[1] <= sigma[1]]
+#def slice(infile, dm=None, timerange=None, sigma=None, downfact=None):
+#    # Not properly implemented yet
+#
+#    data = read_singlepulse(infile)
+#
+#    slices = [None]*5
+#
+#    slice_map = {'dm':0, 'sigma':1, 'timerange':2, 'sample':3, 'downfact':4}
+#
+#
+#
+#
+#    DM = [row.split()[0] for row in data]
+#    Sigma = [row.split()[1] for row in data]
+#    Time = [row.split()[2] for row in data]
+#    Sample = [row.split()[3] for row in data]
+#    Downfact = [row.split()[4] for row in data]
+#
+#    if dm:
+#        if type(dm) == type(0) or type(0.0):
+#            data = [row   for row in data if dm <= row.split()[0]]
+#        elif type(dm) == type([]):
+#            data = [row  for row in data if dm[0] <= row.split()[0] <= dm[1]]
+#    if sigma:
+#        if type(sigma) == type(0) or type(0.0):
+#            data = [row for row in data if sigma <= row.split()[1]  ]
+#        elif type(sigma) == type([]):
+#            data = [row for row in data if sigma[0] <= row.split()[1] <= sigma[1]]
             
 
 if __name__ == '__main__':
