@@ -4,7 +4,6 @@
 
 import numpy as np
 import matplotlib
-matplotlib.use('Agg')
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from pulsar_tools import disp_delay
@@ -349,7 +348,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, thr
 #    sc=ax3.scatter(Time,DM, s=Size, c=Sigma, vmin=min(Sigma), vmax=max(Sigma),\
 #                       cmap=cm, picker=1)
     sc = ax3.scatter(data.time_list, data.dm_list, s=Size, c=Downfact_float, cmap=cm, \
-                         vmin=Downfact_float.min(), vmax=Downfact_float.max(), facecolor='none')
+                         vmin=Downfact_float.min(), vmax=Downfact_float.max(), facecolors='none')
 #    sc = ax3.scatter(data.dm_list, data.time_list, s=Size, c=Downfact_float, cmap=cm, \
 #                         vmin=Downfact_float.min(), vmax=Downfact_float.max(), picker=1, facecolor='none')
 #	leg = ax1.legend()
