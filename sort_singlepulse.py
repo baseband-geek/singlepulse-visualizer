@@ -3,7 +3,7 @@
 import os
 import sys
 
-def sort_singlepulse(basename, directory='.'):
+def sort_singlepulse(basename, directory='.',verbose=False):
     """
     Accepts the base name (usually Observation ID) and the directory where the relevant files are located. 
     If no directory argument is given, assumes all files are in current working directory (.)
@@ -15,6 +15,9 @@ def sort_singlepulse(basename, directory='.'):
     from os import listdir
     import numpy as np
 
+    if verbose not in ['True','False']:
+        print "Running sort_singlepulse with verbose mode off..."
+        verbose = False
     # grab all files with relevant basename in current directory
     base_files = sorted([f for f in listdir(directory) if f.startswith(basename)])
     sp_files = [s for s in base_files if s.endswith('.singlepulse') and '_DM' in s]
@@ -23,13 +26,13 @@ def sort_singlepulse(basename, directory='.'):
     sp_events = []
     for sp in sp_files:
         empty = False
-        print "loading data from: {0}".format(sp)
+        if verbose: print "loading data from: {0}".format(sp)
         
         # load data from files, unles file is empty in which case do nothing and move on
         try:
             data = np.genfromtxt(sp, comments='#', skip_header=1)
         except:
-            print "empty file. not appending to events list."
+            if verbose: print "empty file. not appending to events list."
             empty = True
         
         if empty is False:
@@ -54,6 +57,8 @@ def sort_singlepulse(basename, directory='.'):
     # create a list of tuples, keeping only unique pulse events. Output is a list of tuples
     ordered = sorted(set(map(tuple, sp_events)), key=itemgetter(2))
 
+    if verbose: print "writing {0}.singlepulse".format(basename)
+    
     with open(basename+'.singlepulse','wb') as f:
         f.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format('DM','Sigma','Time(s)','Sample',\
                                                                 'Downfact','inf_file'))
@@ -63,9 +68,10 @@ def sort_singlepulse(basename, directory='.'):
 
 if __name__ == '__main__':
     if len(sys.argv) == 1:
-        print "If using as stand alone script, supply file basename to sort  as firts argument and the directory in which they are located."
+        print "If using as stand alone script, supply file basename to sort as first argument, the directory in which they are located as the second and whether you want verbose output as the third."
         print "basename here is defined as: basename_DM*.fits"
-        print "e.g.               python sort_singlepulse.py filebasename /path/to/singlepulse/files"
+        print "Verbose mode is set to False by default. Send third argument as True if output is desired."
+        print "e.g.               python sort_singlepulse.py filebasename /path/to/singlepulse/files True"
 
         sys.exit(0)
     elif len(sys.argv) == 2:
@@ -74,6 +80,9 @@ if __name__ == '__main__':
     elif len(sys.argv) == 3:
         print "Sorting singlepulse events from basename {0} in {1}".format(sys.argv[1],sys.argv[2])
         sort_singlepulse(sys.argv[1],sys.argv[2])
+    elif len(sys.argv) == 4:
+        print "Sorting singlepulse events from basename {0} in {1}, with verbose output set to {2}".format(sys.argv[1],sys.argv[2],sys.argv[3])
+        sort_singlepulse(sys.argv[1],sys.argv[2],sys.argv[3])
     else:
         print "Too many argument supplied. Just need: basename and (optionally) the directory where the singlepulse files are located."
         sys.exit(0)
