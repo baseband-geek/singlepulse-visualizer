@@ -4,7 +4,7 @@
 
 import numpy as np
 import matplotlib
-matplotlib.use('GTKAgg')
+matplotlib.use('Agg')
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
@@ -12,8 +12,37 @@ import matplotlib.pyplot as plt
 from pulsar_tools import disp_delay
 import math
 from subprocess import call, check_call, Popen, PIPE
+import time
+import multiprocessing as mp
 
+class AsyncPlotter():
+    # Written by Thomas Robitaille and pulled from https://gist.github.com/astrofrog/1453933
+    
+    def __init__(self, processes=mp.cpu_count()):
 
+        self.manager = mp.Manager()
+        self.nc = self.manager.Value('i', 0)
+        self.pids = []
+        self.processes = processes
+
+    def async_plotter(self, nc, fig, filename, processes):
+        while nc.value >= processes:
+            time.sleep(0.1)
+        nc.value += 1
+        print "Plotting " + filename
+        fig.savefig(filename, format='png')
+        plt.close(fig)
+        nc.value -= 1
+
+    def save(self, fig, filename):
+        p = mp.Process(target=self.async_plotter,
+                       args=(self.nc, fig, filename, self.processes))
+        p.start()
+        self.pids.append(p)
+
+    def join(self):
+        for p in self.pids:
+            p.join()
 
 
 class SinglePulse:
@@ -161,19 +190,19 @@ def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=
     check_call(['flag.sh', basename])
 
 
-def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, threshold=5.0, obsid=None, dm_pairs=[[0,2000]]):
+def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, threshold=5.0, obsid=None, dm_pairs=[[0,2000]], directory="./"):
     """
     Plots up the flagged data, should switch to using genfromtxt when I have the time.
        BWM: switched to using load_file to load singlepulse and flags. Uses genfromtext.
     """
     if raw:
-        data = load_file(basename + '.singlepulse')
+        data = load_file(directory + basename + '.singlepulse')
         flag_times = False
     else:
         #flag_times = load_file(basename+'.bad')
-        flagfile(basename)
-        data = load_file(basename + '_flagged.singlepulse')
-        flags = load_file(basename + '.flag')
+        flagfile(directory + basename)
+        data = load_file(directory + basename + '_flagged.singlepulse')
+        flags = load_file(directory + basename + '.flag')
 
 
     data = SPList(data.list[data.sigma_list >= threshold])
@@ -181,7 +210,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
     Downfact_float = data.downfact_list.astype(float)
 
     
-    cm = plt.cm.get_cmap('gist_rainbow')
+    #cm = plt.cm.get_cmap('gist_rainbow')
     
     t_0 = 0 
     time_step = 2
@@ -189,12 +218,14 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
     time_span =  200
     last_time = data.time_list.max()
     
+    asplot = AsyncPlotter()
+    
     def make_frame(t_frame):
         print "Making fromes for timestep {0} out of {1}".format((t_frame+1), int(last_time/time_step))
         time= time_step*t_frame
         timerange_data = SPList(data.list[ (time <= data.time_list) & ( data.time_list <= (time + time_span))])
         for dm_pair in dm_pairs:
-            fig = plt.figure()
+            fig = plt.figure(figsize=(11.69,8.27))
             temp_data = SPList(timerange_data.list[(dm_pair[0] <= timerange_data.dm_list) & ( timerange_data.dm_list <= dm_pair[1])])
             if StatPlots:
                 ax0 = fig.add_subplot(231)
@@ -212,6 +243,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
                     print "Plot contains no points"
                 ax1.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)')
                 ax1.set_ylabel('Number of Pulses')
+                ax1.set_xlim(dm_pair[0], dm_pair[1])
                 ax2 = fig.add_subplot(233, sharex=ax1) # BWM: now shares x-axis with ax1, so changing DM on one will change range on the other
                 try:
                     plt.scatter(temp_data.dm_list, temp_data.sigma_list, alpha=0.9)
@@ -219,10 +251,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
                     print "Plot contains no points"
                 ax2.set_ylabel('Signal-to-Noise')
                 ax2.set_xlabel('DM ($\mathrm{p\, cm^{-3}}$)')
-                try:
-                    ax2.set_xlim([0, temp_data.dm_list.max()])
-                except ValueError:
-                    ax2.set_xlim([dm_pair[0], dm_pair[1]])
+                ax2.set_xlim([dm_pair[0], dm_pair[1]])
                 try:
                     ax2.set_ylim([data.sigma_list.min(), 1.1 * temp_data.sigma_list.max()])	
                 except ValueError:
@@ -254,7 +283,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
             ax3.set_xlabel('DM ($\mathrm{pc\, cm^{-3}}$)')
             ax3.set_xlim([dm_pair[0], dm_pair[1]])
             ax3.set_ylim([time, time + time_span])
-            #cm = plt.cm.get_cmap('gist_rainbow')
+            cm = plt.cm.get_cmap('gist_rainbow')
             # grab axis3 size to allocate marker sizes
             bbox_pix = ax3.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
             width, height = bbox_pix.width, bbox_pix.height
@@ -282,7 +311,9 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
             #		writer.grab_frame()
             f_name="_dm{0:0>4}_{1:0>4}_tmp{2:0>10}.png".format(dm_pair[0],dm_pair[1],t_frame)
             #		plt.savefig(f_name)
-            plt.savefig(f_name, bbox_inches='tight', dpi=400)
+            #plt.savefig(f_name, bbox_inches='tight', dpi=400)
+            asplot.save(fig, f_name)
+            #plt.savefig(f_name, format='png')
             plt.close(fig)
     
     [make_frame(t) for t in range(t_0, int((last_time-time_span)/time_step))]
@@ -292,7 +323,23 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=True, raw = False, thre
     obs_stats(data.time_list, flags)
 
 
-
+def galaxy_batchjobs(obs_id=None, DMvTime=1, StatPlots=True, raw = False, threshold=5.0, obsid=None, dm_pairs=[[0,2000]]):
+    workdir = "/scratch2/mwaops/stremblay/data/observations/{0}/".format(obs_id)
+    for dm_pair in dm_pairs:
+        batch_name = "{0}{1}_sp_movie_{2}_{3}.batch".format(workdir+"batch_files/",obs_id, dm_pair[0], dm_pair[1])
+        batch_out = batch_name[:-5]+"out"
+        with open(batch_name,'w') as batch_file:
+            batch_line = "#!/bin/bash -l\n#SBATCH --time=12:00:00\n#SBATCH \n#SBATCH --output={0}\n#SBATCH --export=NONE\n#SBATCH -p workq\n".format(batch_out)
+            batch_file.write(batch_line)
+            batch_line = "aprun make_sp_movie.py --obsid {0} --dm_ranges {1},{2}\n".format(obs_id, dm_pair[0], dm_pair[1])
+            batch_file.write(batch_line)
+            
+        submit_line = "sbatch --partition=workq --workdir={0} {1}\n".format(workdir+"singlepulse/",batch_name)
+        submit_cmd = Popen(submit_line,shell=True,stdout=PIPE)
+        jobid=""
+        for line in submit_cmd.stdout:
+            if "Submitted" in line:
+                (word1,word2,word3,jobid) = line.split()
 
 if __name__ == '__main__':
 
@@ -302,11 +349,24 @@ if __name__ == '__main__':
     parser.add_option("--obsid", action="store", type="string", help="Observation ID or other basename for files. [No default]")
     parser.add_option("--threshold", action="store", type="float", default=5.0, help="S/N threshold. [default=%default]")
     parser.add_option("--raw", action="store_true", default=False, help="Plots the data without any flagging [default=%default]")
+    parser.add_option("--galaxy", action="store_true", default=False, help="Boolean trigger controlling splitting each DM pair into separate batch jobs [default=%defalut]")
+    parser.add_option("--local", action="store_true", default=False, help="Use this flag to bypass 'standard' directory structure [default=%default]")
     
     (opts, args) = parser.parse_args()	# Parse string into a list, then build a list of pairs for dm ranges to be plotted
     opts.dm_ranges = [dm for dm in opts.dm_ranges.split(",")]
     dm_pairs = [[int(i),int(j)] for i,j in zip(opts.dm_ranges[:-1], opts.dm_ranges[1:])]
-    dm_pairs.insert(0,[int(opts.dm_ranges[0]),int(opts.dm_ranges[-1])])
-    
-    singlepulse_plot(basename=opts.obsid, DMvTime=1, StatPlots=True, raw = opts.raw, threshold=opts.threshold, obsid=opts.obsid, dm_pairs=dm_pairs)
+    if len(dm_pairs) > 2:
+        dm_pairs.insert(0,[int(opts.dm_ranges[0]),int(opts.dm_ranges[-1])])
+    if opts.galaxy:
+        galaxy_batchjobs(obs_id=opts.obsid, DMvTime=1, StatPlots=True, raw = opts.raw, threshold=opts.threshold, obsid=opts.obsid, dm_pairs=dm_pairs)
+        quit()
+        
+    if opts.local:
+        wdir = "./"
+    else:
+        wdir = "/scratch2/mwaops/stremblay/data/observations/{0}/singlepulse/".format(opts.obsid)
+    start=time.time()
+    singlepulse_plot(basename=opts.obsid, DMvTime=1, StatPlots=True, raw = opts.raw, threshold=opts.threshold, obsid=opts.obsid, dm_pairs=dm_pairs, directory=wdir)
+    print "Took {0} seconds".format(time.time()-start)
+
 
