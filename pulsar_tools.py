@@ -135,7 +135,7 @@ def get_pulsar(name):
 		n = None
 
 
-	print "Dispersion delay (ms) between 185 and 215.72 MHz (MWA bandwidth, 30.72 MHz): {}".format(ddelay)
+	print "Dispersion delay (ms) between 185.00 and 215.72 MHz (MWA bandwidth, 30.72 MHz): {}".format(ddelay)
 	print "Rotational energy (J): {}".format(erot)	
 	print "Rotational energy loss rate (J/s): {}".format(eloss)	
 	print "Minimum surface magnetic field strength, Bmin (G): {}".format(bmin)
@@ -207,6 +207,21 @@ def disp_delay(freq1=0.184975, freq2=0.200335, DM=0.0):
 	A = A * (1.0/1.0e9)**2 * (1e6) * (1e3) *  pc.to('m').value
 
 	del_t = A * DM * ((freq1)**(-2) - (freq2)**(-2))
+
+	return del_t
+
+
+
+def disp_delay_inf(freq1=0.184975, DM=0.0):
+	"""
+	Accepts lower band-edge frequency and a DM, returns the dispersion delay 
+	in milliseconds realtive to infinite frequncy.
+	Default: frequency = 184.975 MHz, DM = 0 pc/cm^3
+	"""
+	A = e.value**2 / (8 * pi**2 * m_e.value * c.value * eps0.value)
+	A = A * (1.0/1.0e9)**2 * (1e6) * (1e3) *  pc.to('m').value
+
+	del_t = A * DM * freq**(-2)
 
 	return del_t
 
