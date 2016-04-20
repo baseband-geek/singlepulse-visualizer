@@ -51,12 +51,6 @@ class SPList:
         self.sample_list   = np.array([sp.sample for sp in sp_list])
         self.downfact_list = np.array([sp.downfact for sp in sp_list])
         self.inf_list      = np.array([sp.inf_file for sp in sp_list])
-    
-    #attr_list = [v[0] for v in vars(self).items()]
-    #def __iter__(self):
-    #    return self
-
-    #def next(self):
         
         
     def print_lists(self):
@@ -66,68 +60,6 @@ class SPList:
         print "Sample list:",self.sample_list
         print "Downfactor list:",self.downfact_list
         print "Inf_file list:",self.inf_list
-
-
-#def make_data_points(data):
-#    """
-#    Function to create all the SinglePulse objects for each single pulse in the data file.
-#    Also creates an SPList object to containall the SinglePulse events.
-#    Returns an SPList object.
-#    """
-#    # TODO: Need to re-work and see if there's a smarter way to populate all of the SinglePulse objects
-#    DM = [float(row.split()[0]) for row in data]
-#    Sigma = [float(row.split()[1]) for row in data]
-#    Time = [float(row.split()[2]) for row in data]
-#    Sample = [int(row.split()[3]) for row in data]
-#    Downfact = [int(row.split()[4]) for row in data]
-#
-#    sp = [SinglePulse(dm, sig, time, samp, dfact) for dm, sig, time, samp, dfact \
-#                       in zip(DM, Sigma, Time, Sample, Downfact)]
-#    sp_list = SPList(sp)
-#
-#    return sp_list
-
-
-def sort_singlepulse(basename, directory='.'):
-    """
-    Accepts the base name (usually Observation ID) and the directory where the relevant files are located. 
-    If no directory argument is given, assumes all files are in current working directory (.)
-
-    Creates a total singlepulse file from all singlpulse files with the given base name. 
-    Ensures unique entries only, and the file output is sorted in time (and therefore sample).
-    """
-    from operator import itemgetter
-    from os import listdir
-
-    # grab all files with relevant basename in current directory
-    base_files = sorted([f for f in listdir(directory) if f.startswith(basename)])
-    sp_files = [s for s in base_files if s.endswith('.singlepulse') and '_DM' in s]
-    
-    # create a list of single pulse events from the .singlepulse file
-    sp_events = []
-    for sp in sp_files:
-        data = np.genfromtxt(sp, comments='#', skip_header=1)
-        for d in data:                
-            sp_events.append(np.append(d, sp.replace('.singlepulse', '.inf')).tolist())
-    
-    # annoying but necessary type conversions for sorting
-    for s in sp_events:
-        s[0]=float(s[0])
-        s[1]=float(s[1])
-        s[2]=float(s[2])
-        s[3]=int(float(s[3]))
-        s[4]=int(float(s[4]))
-
-    # create a list of tuples, keeping only unique pulse events. Output is a list of tuples
-    ordered = sorted(set(map(tuple, sp_events)), key=itemgetter(2))
-
-    with open(basename+'.singlepulse','wb') as f:
-        f.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format('DM','Sigma','Time(s)','Sample',\
-                                                                'Downfact','inf_file'))
-        for event in ordered:
-            f.write(''.join('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(*event)))
-
-
 
 
 def load_file(filename):
@@ -243,8 +175,11 @@ def flagfile(basename, max_DM=2097.2, freq_l=0.169615, freq_h=0.200335, padding=
 def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw = False, threshold=5.0, movie=False):
     """
     Plots up the flagged data, should switch to using genfromtxt when I have the time.
-       BWM: switched to using load_file to load singlepulse and flags. Uses genfromtext.
+       BWM: switched to using load_file to load singlepulse and flags. Uses genfromtxt.
     """
+
+    print "Make sure you have run sort_singlepulse.py to gather the single pulse events into the one file {0}.singelpulse".format(basename)
+
     if raw:
         data = load_file(basename + '.singlepulse')
         #flag_times = False
