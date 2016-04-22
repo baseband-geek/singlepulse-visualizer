@@ -3,7 +3,7 @@
 
 
 import numpy as np
-import matplotlib
+import matplotlib as mpl
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from pulsar_tools import disp_delay
@@ -201,18 +201,20 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
 
     TOOLS = "resize,pan,wheel_zoom,box_zoom,reset,box_select,lasso_select"
     color = 'navy'
-    color_array= [color]*len(Size)
+    #color_map = 
+    color_map = [
+        "#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*mpl.cm.gist_rainbow(mpl.colors.Normalize()(data['Sigma'].values))]
     source = ColumnDataSource(data=dict(time=data['Time'].values,\
                                         dm=data['DM'].values,\
                                         sigma=data['Sigma'].values,\
-                                        size=Size,color=color_array,\
+                                        size=Size,cmap=color_map,\
                                         downfact=data['Downfact'].values.astype(float)))
     
 
     source2 = ColumnDataSource(data=dict(time=[],dm=[],sigma=[]))
 
     timeseries = figure(plot_width=900, plot_height=400, webgl=True,tools=TOOLS)
-    timeseries.scatter('time','dm',source=source, marker='o',size='size',color='color')
+    timeseries.scatter('time','dm',source=source, marker='o',size='size',fill_color='cmap',line_color='cmap')
     timeseries.xaxis.axis_label = 'Time'
     timeseries.yaxis.axis_label = 'DM'
 
@@ -233,7 +235,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
 
         top_right = figure(plot_width=300, plot_height=300, webgl=True,tools=TOOLS,\
                            x_range=top_mid.x_range)
-        top_right.scatter('dm','sigma',source=source, marker='o',color='color')
+        top_right.scatter('dm','sigma',source=source, marker='o',color='cmap')
         top_right.xaxis.axis_label = 'DM'
         top_right.yaxis.axis_label = 'S/N'
 
