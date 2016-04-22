@@ -193,7 +193,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
     # ensure only using data points with sigma > threshold
     data = data[data['Sigma']>threshold]
 
-    cm = plt.cm.get_cmap('gist_rainbow')
+    #cm = plt.cm.get_cmap('gist_rainbow')
 
     Size = 5 * data['Sigma'].values/4.0
     percentile = np.percentile(Size, 99.5)
@@ -201,9 +201,14 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
 
     TOOLS = "resize,pan,wheel_zoom,box_zoom,reset,box_select,lasso_select"
     color = 'navy'
-    #color_map = 
-    color_map = [
-        "#%02x%02x%02x" % (int(r), int(g), int(b)) for r, g, b, _ in 255*mpl.cm.gist_rainbow(mpl.colors.Normalize()(data['Sigma'].values))]
+
+    # Function to create colormap based on whatever data is passed. 
+    # Uses gist_rainbow as base map
+    def make_color_map(scale_data):
+        return ["#{0:02X}{1:02X}{2:02X}".format(int(r), int(g), int(b)) for r, g, b, _ in 255 * mpl.cm.gist_rainbow(mpl.colors.Normalize()(scale_data))]     
+  
+    color_map = make_color_map(data['Sigma'].values)
+
     source = ColumnDataSource(data=dict(time=data['Time'].values,\
                                         dm=data['DM'].values,\
                                         sigma=data['Sigma'].values,\
@@ -213,36 +218,38 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
 
     source2 = ColumnDataSource(data=dict(time=[],dm=[],sigma=[]))
 
-    timeseries = figure(plot_width=900, plot_height=400, webgl=True,tools=TOOLS)
+    timeseries = figure(plot_width=900, plot_height=400, webgl=True,tools=TOOLS,toolbar_location='right')
     timeseries.scatter('time','dm',source=source, marker='o',size='size',fill_color='cmap',line_color='cmap')
-    timeseries.xaxis.axis_label = 'Time'
-    timeseries.yaxis.axis_label = 'DM'
+    timeseries.xaxis.axis_label = 'Time (s)'
+    timeseries.yaxis.axis_label = 'DM (pc/cc)'
 
     if StatPlots:
         top_left = figure(plot_width=300, plot_height=300 ,webgl=True, tools=TOOLS)
-        hist,edges = np.histogram(data['Sigma'].values, bins=int(0.1 * len(set(data['Sigma'].values))))
+        sigma_bins = int(0.1 * len(set(data['Sigma'].values)))
+        hist,edges = np.histogram(data['Sigma'].values, bins=sigma_bins)
         #source.add(hist,name='sigma_hist')
         top_left.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:],line_color=color,fill_color=color)
         top_left.xaxis.axis_label = 'S/N'
         top_left.yaxis.axis_label = 'Number of pulses'
 
         top_mid = figure(plot_width=300, plot_height=300, webgl=True,tools=TOOLS)
-        hist,edges = np.histogram(data['DM'].values, bins=int(0.5 * len(set(data['DM'].values))))
+        dm_bins = int(0.5 * len(set(data['DM'].values)))
+        hist,edges = np.histogram(data['DM'].values, bins=dm_bins)
         #source.add(hist,name='dm_hist')
         top_mid.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:],line_color=color,fill_color=color)
-        top_mid.xaxis.axis_label = 'DM'
+        top_mid.xaxis.axis_label = 'DM (pc/cc)'
         top_mid.yaxis.axis_label = 'Number of pulses'
 
         top_right = figure(plot_width=300, plot_height=300, webgl=True,tools=TOOLS,\
                            x_range=top_mid.x_range)
         top_right.scatter('dm','sigma',source=source, marker='o',color='cmap')
-        top_right.xaxis.axis_label = 'DM'
+        top_right.xaxis.axis_label = 'DM (pc/cc)'
         top_right.yaxis.axis_label = 'S/N'
 
         int(0.5 * len(set(data['DM'].values)))
 
     if StatPlots:
-        plots = [gridplot([[top_left,top_mid,top_right]]),timeseries]
+        plots = [gridplot([[top_left,top_mid,top_right]],toolbar_location='right'),timeseries]
         show(vplot(*plots))
     else:
         show(timeseries)
