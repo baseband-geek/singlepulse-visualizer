@@ -220,14 +220,14 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
 
     if StatPlots:
         top_left = figure(plot_width=300, plot_height=300 ,webgl=True, tools=TOOLS)
-        hist,edges = np.histogram(data['Sigma'].values, bins=50)
+        hist,edges = np.histogram(data['Sigma'].values, bins=int(0.1 * len(set(data['Sigma'].values))))
         #source.add(hist,name='sigma_hist')
         top_left.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:],line_color=color,fill_color=color)
         top_left.xaxis.axis_label = 'S/N'
         top_left.yaxis.axis_label = 'Number of pulses'
 
         top_mid = figure(plot_width=300, plot_height=300, webgl=True,tools=TOOLS)
-        hist,edges = np.histogram(data['DM'].values, bins=50)
+        hist,edges = np.histogram(data['DM'].values, bins=int(0.5 * len(set(data['DM'].values))))
         #source.add(hist,name='dm_hist')
         top_mid.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:],line_color=color,fill_color=color)
         top_mid.xaxis.axis_label = 'DM'
@@ -239,7 +239,7 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
         top_right.xaxis.axis_label = 'DM'
         top_right.yaxis.axis_label = 'S/N'
 
-        
+        int(0.5 * len(set(data['DM'].values)))
 
     if StatPlots:
         plots = [gridplot([[top_left,top_mid,top_right]]),timeseries]
