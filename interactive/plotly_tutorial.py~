@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+import plotly.offline as py
+from plotly.graph_objs import Scatter, Layout
+
+py.plot({"data": [{"x": [1, 2, 3],"y": [4, 2, 5]}], "layout": {"title": "hello world"}}))
