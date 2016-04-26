@@ -11,7 +11,8 @@ import math
 import sys
 import pandas as pd
 
-from bokeh.io import output_file, show, vform, push_notebook
+import bokeh.io
+from bokeh.io import output_file, show, vform
 from bokeh.models import CustomJS, ColumnDataSource, Slider, HoverTool
 from bokeh.plotting import *
 from ipywidgets import interact
@@ -204,22 +205,17 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
 
     # Function to create colormap based on whatever data is passed. 
     # Uses gist_rainbow as base map
-    def make_color_map(scale_data):
+    def make_cmap(scale_data):
         return ["#{0:02X}{1:02X}{2:02X}".format(int(r), int(g), int(b)) for r, g, b, _ in 255 * mpl.cm.gist_rainbow(mpl.colors.Normalize()(scale_data))]     
-  
-    color_map = make_color_map(data['Sigma'].values)
 
-    source = ColumnDataSource(data=dict(time=data['Time'].values,\
-                                        dm=data['DM'].values,\
-                                        sigma=data['Sigma'].values,\
-                                        size=Size,cmap=color_map,\
-                                        downfact=data['Downfact'].values.astype(float)))
+    color_map = make_cmap(data['Sigma'].values)
+
+    src = ColumnDataSource(data=dict(time=data['Time'].values,dm=data['DM'].values,sigma=data['Sigma'].values,size=Size,cmap=color_map,downfact=data['Downfact'].values.astype(float)))
     
 
-    source2 = ColumnDataSource(data=dict(time=[],dm=[],sigma=[]))
 
     timeseries = figure(plot_width=900, plot_height=400, webgl=True,tools=TOOLS,toolbar_location='right')
-    timeseries.scatter('time','dm',source=source, marker='o',size='size',fill_color='cmap',line_color='cmap')
+    timeseries.scatter('time','dm',source=src, marker='o',size='size',fill_color='cmap',line_color='cmap')
     timeseries.xaxis.axis_label = 'Time (s)'
     timeseries.yaxis.axis_label = 'DM (pc/cc)'
 
@@ -242,14 +238,15 @@ def singlepulse_plot(basename=None, DMvTime=1, StatPlots=False, raw=False, thres
 
         top_right = figure(plot_width=300, plot_height=300, webgl=True,tools=TOOLS,\
                            x_range=top_mid.x_range)
-        top_right.scatter('dm','sigma',source=source, marker='o',color='cmap')
+        top_right.scatter('dm','sigma',source=src, marker='o',color='cmap')
         top_right.xaxis.axis_label = 'DM (pc/cc)'
         top_right.yaxis.axis_label = 'S/N'
+        
+        stat_figures = [top_left,top_mid,top_right]
 
-        int(0.5 * len(set(data['DM'].values)))
 
     if StatPlots:
-        plots = [gridplot([[top_left,top_mid,top_right]],toolbar_location='right'),timeseries]
+        plots = [gridplot([stat_figures],toolbar_location='right'),timeseries]
         show(vplot(*plots))
     else:
         show(timeseries)
