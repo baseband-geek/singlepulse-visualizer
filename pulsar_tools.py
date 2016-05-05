@@ -46,11 +46,11 @@ def get_pulsar(name):
 		print "***WARNING: Environment variable PSRCAT_DIR is not defined." 
 		print "***NOTE: Please set PSRCAT_DIR to point at the directory containing psrcat.db "\
 		    "and the binary executable."
-		sys.exit(0)
+		sys.exit("unable to locate PSRCAT from env. variable")
 
 	elif 'psrcat' and 'psrcat.db' not in listdir(psrcat_dir):
 		print "PSRCAT_DIR does not point to the location of psrcat.db and psrcat. Exitting."
-		sys.exit(0)
+		sys.exit("PSRCAT not in location of PSRCAT_DIR")
 
 	else:
 		psrcat = psrcat_dir + '/psrcat'
@@ -71,17 +71,17 @@ def get_pulsar(name):
 	psr = [None if p is '*' else p for p in psr]
 
 	psrj, psrb, ra, dec, ra_deg, dec_deg, gl, gb, dm, f0, f1, f2, w50, w10, rm = psr
-	print "!!NOTE: Pulsar parameters will be None if not found in PSRCAT!!"
+	print "!!NOTE: Pulsar parameters will be None if not available from PSRCAT!!"
 	print 50*"="
-	print "Right ascension (J2000): {}".format(ra)
-	print "Declination (J2000): {}".format(dec)
-	print "Dispersion measure, DM (pc/cm^3): {}".format(dm)
-	print "Spin frequency, f0 (Hz): {}".format(f0)
-	print "Spin frequency 1st time-derivative, f1 (Hz/Hz): {}".format(f1)
-	print "Spin frequency 2nd time-derivative, f2 (1/Hz): {}".format(f2)
-	print "Pulse width at 50%, W50 (ms): {}".format(w50)
-	print "Pulse width at 10%, W10 (ms): {}".format(w10)
-	print "Rotation measure, RM (rad/m^2): {}".format(rm)
+	print "Right ascension (J2000):                         {0}".format(ra)
+	print "Declination (J2000):                             {0}".format(dec)
+	print "Dispersion measure, DM (pc/cm^3):                {0}".format(dm)
+	print "Spin frequency, f0 (Hz):                         {0}".format(f0)
+	print "Spin frequency 1st time-derivative, f1 (Hz/s):   {0}".format(f1)
+	print "Spin frequency 2nd time-derivative, f2 (Hz/s^2): {0}".format(f2)
+	print "Pulse width at 50%, W50 (ms):                    {0}".format(w50)
+	print "Pulse width at 10%, W10 (ms):                    {0}".format(w10)
+	print "Rotation measure, RM (rad/m^2):                  {0}".format(rm)
 	print '\n'+50*"="
 
 	# output all calculable quantities:
@@ -90,8 +90,10 @@ def get_pulsar(name):
 
 	if dm:
 		ddelay = disp_delay(0.185, 0.21572, float(dm))
+		ddelay_inf = disp_delay_inf(0.185, float(dm))
 	else:
 		ddelay = None
+		ddelay_inf = None
 
 	
 	if dm and rm:
@@ -135,26 +137,27 @@ def get_pulsar(name):
 		n = None
 
 
-	print "Dispersion delay (ms) between 185.00 and 215.72 MHz (MWA bandwidth, 30.72 MHz): {}".format(ddelay)
-	print "Rotational energy (J): {}".format(erot)	
-	print "Rotational energy loss rate (J/s): {}".format(eloss)	
-	print "Minimum surface magnetic field strength, Bmin (G): {}".format(bmin)
-	print "Mean parallel magnetic field component (G) along the LOS: {}".format(b_los)
-	print "Magnetic energy density (J/m^3), assuming B=Bmin: {}".format(mag_E_density)
-	print "Characteristic age (yr): {}".format(tau)
-	print "Braking index: {}".format(n)
-	print "Polar cap plasma density (particles/cm^3): {}".format(pcpd)
-	print "Polar cap radius (m): {}".format(pcr)
-	print "Light cylinder radius (m): {}".format(lcr)
-	print "Magnetic field strength at light cylinder radius: {}".format(lcrB)
+	print "Dispersion delay (ms) between 185 and 215.72 MHz:          {0}".format(ddelay)
+	print "Dispersion delay (ms) from 185 MHz to infinite freq.:      {0}".format(ddelay_inf)
+	print "Rotational energy (J):                                     {0}".format(erot)	
+	print "Rotational energy loss rate (J/s):                         {0}".format(eloss)	
+	print "Minimum surface magnetic field strength, Bmin (G):         {0}".format(bmin)
+	print "Mean parallel magnetic field component (G) along the LOS:  {0}".format(b_los)
+	print "Magnetic energy density (J/m^3), assuming B=Bmin:          {0}".format(mag_E_density)
+	print "Characteristic age (yr):                                   {0}".format(tau)
+	print "Braking index:                                             {0}".format(n)
+	print "GJ polar cap plasma density (particles/cm^3):              {0}".format(pcpd)
+	print "Polar cap radius (m):                                      {0}".format(pcr)
+	print "Light cylinder radius (m):                                 {0}".format(lcr)
+	print "Magnetic field strength at light cylinder radius (G):      {0}".format(lcrB)
 	print 50*"="
 
 
 	psr_dict = {'psrj':psrj, 'psrb':psrb, 'ra_str':ra, 'dec_str':dec, 'ra':ra_deg, 'dec':dec_deg,\
 			    'l':gl, 'b':gb, 'dm':dm, 'f0':f0, 'f1':f1, 'f2':f2, 'w50':w50, 'w10':w10,\
-			    'rm':rm, 'mwa_bw_delay':ddelay, 'Erot':erot, 'Eloss':eloss, 'bmin':bmin,\
-			    'b_parallel':b_los, 'u_B':mag_E_density, 'char_age':tau, 'braking_ind':n,\
-			    'pc_plas_dens':pcpd, 'pc_radius':pcr, 'lcyl_radius':lcr, 'lcyl_B':lcrB}
+			    'rm':rm, 'Erot':erot, 'Eloss':eloss, 'bmin':bmin, 'b_parallel':b_los,\
+			    'u_B':mag_E_density, 'char_age':tau, 'braking_ind':n,\
+			    'gj_density':pcpd, 'pc_radius':pcr, 'lcyl_radius':lcr, 'lcyl_B':lcrB}
 
 	return psr_dict
 
@@ -212,10 +215,10 @@ def disp_delay(freq1=0.184975, freq2=0.200335, DM=0.0):
 
 
 
-def disp_delay_inf(freq1=0.184975, DM=0.0):
+def disp_delay_inf(freq=0.184975, DM=0.0):
 	"""
-	Accepts lower band-edge frequency and a DM, returns the dispersion delay 
-	in milliseconds realtive to infinite frequncy.
+	Accepts lower band-edge frequency (in GHz) and a DM (in pc/cm^3), 
+	returns the dispersion delay in milliseconds realtive to infinite frequncy.
 	Default: frequency = 184.975 MHz, DM = 0 pc/cm^3
 	"""
 	A = e.value**2 / (8 * pi**2 * m_e.value * c.value * eps0.value)
@@ -229,8 +232,8 @@ def disp_delay_inf(freq1=0.184975, DM=0.0):
 
 def E_rot(p0=1.0, *args):
 	"""
-	Accepts a spin period (in s) and returns the approximate roational
-	energy in J. 
+	Accepts a spin period (in s) and returns the approximate rotational
+	energy in J. (1 J = 10^7 erg)
 
 	Also accepts an optional value for the moment of inertia I,
 	else reverts to the standard estimate, I=1.0e38 kg m^2 (Lorimer & Kramer, 2004).
@@ -250,7 +253,7 @@ def E_rot(p0=1.0, *args):
 def E_loss(p0=1.0, p1=1e-12, *args):
 	"""
 	Accepts a spin period (in s) and spin period derivative (in s/s) and
-	returns the approximate roational energy loss rate in J/s. 
+	returns the approximate roational energy loss rate in J/s. (1 J/s = 10^7 erg/s)
 
 	Also accepts optional value for moment of inertia I, else reverts to standard 
 	estimate, I=1.0e38 kg m^2 (Lorimer & Kramer, 2004).
@@ -272,7 +275,7 @@ def min_mag_field(p0=1.0, p1=1.0e-12):
 	Accepts a spin period (in s) and spin period derivative (in s/s) and 
 	returns the minimum surface magnetic field strength in Gauss. 
 	
-	Conversion to Tesla is: B(tesla) = 10^4 * B(Gauss)
+	Conversion to Tesla is: 1 T = 10^4 G
 	"""
 		
 	b_min = (3.2e19) * sqrt(p0 * p1)
@@ -285,7 +288,9 @@ def mean_parallel_B(rm=0.0, dm=100.0):
 	"""
 	Accepts a rotation measure (in rad/m^2) and dispersion measure (in pc/cm^3) and 
 	returns the approximate mean value for the paralelle magnetic field compoent along 
-	the line of sight, in Gauss."
+	the line of sight, in Gauss.
+
+	Conversion to Tesla is: 1 T = 10^4 G
 	"""
 
 	b_los = 1.23 * (rm / dm)
@@ -299,7 +304,7 @@ def mag_energy_density(b=1e12):
 	Accepts a magnetic field strength in Gauss and returns the theoretical
 	energy density in J/m^3. 
 
-	Conversion to erg/cm^3 is: U(erg/cm^3) = U(J/m^3) / 10.
+	Conversion to erg/cm^3 is: 1 J/m^3 = 10 erg/cm^3
 	"""
 
 	u = 10 * b**2 / (8 * pi)
