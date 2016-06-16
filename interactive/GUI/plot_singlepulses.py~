@@ -1,0 +1,11 @@
+#!/usr/bin/env python
+
+
+import wx
+import pandas
+import matplotlib
+matplotlib.use('WXAgg')
+from matplotlib.figure import Figure
+
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg
+from matplotlib.backends.backend_wx import NavigationToolbar2Wx4
